@@ -19,7 +19,7 @@ package-index, and release-asset contracts.
 - Use committed lockfiles for tool and Python dependency resolution. Do not add
   committed workflows that use `uvx`, `uv tool install`, `uv run --with ...`,
   curl-piped installers, or `eget`.
-- Use `spectralflight/...` bookmarks for public GitHub work.
+- Use `spectralflight/...` branches for public GitHub work.
 
 ## Package Boundary
 
