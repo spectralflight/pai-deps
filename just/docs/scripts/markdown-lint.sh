@@ -30,7 +30,6 @@ while IFS= read -r -d '' markdown_file; do
 done < <(
 	find . \
 		-path './.git' -prune -o \
-		-path './.jj' -prune -o \
 		-path './.venv' -prune -o \
 		-path './tmp' -prune -o \
 		-name SKILL.md -type f -print0

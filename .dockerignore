@@ -1,5 +1,4 @@
 .git
-.jj
 .venv
 __pycache__
 *.pyc

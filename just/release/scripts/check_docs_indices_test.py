@@ -20,7 +20,6 @@ def _load_check_docs_indices():
 check_docs_indices = _load_check_docs_indices()
 ChangedPath = check_docs_indices.ChangedPath
 forbidden_index_changes = check_docs_indices.forbidden_index_changes
-parse_jj_summary = check_docs_indices.parse_jj_summary
 parse_name_status = check_docs_indices.parse_name_status
 
 SHA_A = "a" * 64
@@ -33,13 +32,6 @@ def test_parse_name_status():
     ) == [
         ChangedPath(status="M", path="docs/v1.5.0/index.html"),
         ChangedPath(status="R100", old_path="docs/simple/index.html", path="docs/simple-old/index.html"),
-    ]
-
-
-def test_parse_jj_summary():
-    assert parse_jj_summary("M docs/v1.5.0/index.html\nA agents/agent-workflow.md\n") == [
-        ChangedPath(status="M", path="docs/v1.5.0/index.html"),
-        ChangedPath(status="A", path="agents/agent-workflow.md"),
     ]
 
 

@@ -31,50 +31,12 @@ def _load_manifest_from_text(path: str, text: str) -> IndexManifest:
     return manifest
 
 
-def _git_manifest_paths(ref: str) -> set[str] | None:
+def _git_manifest_paths(ref: str) -> set[str]:
     cmd = ["git", "ls-tree", "-r", "--name-only", ref, "--", "indices"]
     result = subprocess.run(cmd, text=True, capture_output=True, check=False)
     if result.returncode != 0:
-        return None
+        raise subprocess.CalledProcessError(result.returncode, cmd, output=result.stdout, stderr=result.stderr)
     return {path for path in result.stdout.splitlines() if path.endswith("/manifest.json")}
-
-
-def _jj_rev_candidates(ref: str) -> list[str]:
-    candidates = [ref]
-    if ref.startswith("refs/remotes/"):
-        remote_ref = ref.removeprefix("refs/remotes/")
-        remote, _, branch = remote_ref.partition("/")
-        if remote and branch:
-            candidates.insert(0, f"{branch}@{remote}")
-            candidates.append(branch)
-    elif "/" in ref and "@" not in ref:
-        remote, branch = ref.split("/", 1)
-        candidates.insert(0, f"{branch}@{remote}")
-        candidates.append(branch)
-    return list(dict.fromkeys(candidates))
-
-
-def _jj_run_with_ref(ref: str, command: list[str]) -> str | None:
-    for candidate in _jj_rev_candidates(ref):
-        cmd = [arg if arg != "{rev}" else candidate for arg in command]
-        result = subprocess.run(cmd, text=True, capture_output=True, check=False)
-        if result.returncode == 0:
-            return result.stdout
-    return None
-
-
-def _jj_manifest_paths(ref: str) -> set[str]:
-    output = _jj_run_with_ref(ref, ["jj", "--no-pager", "file", "list", "-r", "{rev}", "indices"])
-    if output is None:
-        return set()
-    return {path for path in output.splitlines() if path.endswith("/manifest.json")}
-
-
-def _base_manifest_paths(ref: str) -> set[str]:
-    git_paths = _git_manifest_paths(ref)
-    if git_paths is not None:
-        return git_paths
-    return _jj_manifest_paths(ref)
 
 
 def _worktree_manifest_paths(indices_dir: Path = Path("indices")) -> set[str]:
@@ -87,17 +49,6 @@ def _git_show(ref: str, path: str) -> str | None:
     if result.returncode != 0:
         return None
     return result.stdout
-
-
-def _jj_show(ref: str, path: str) -> str | None:
-    return _jj_run_with_ref(ref, ["jj", "--no-pager", "file", "show", "-r", "{rev}", path])
-
-
-def _vcs_show(ref: str, path: str) -> str | None:
-    old_text = _git_show(ref, path)
-    if old_text is not None:
-        return old_text
-    return _jj_show(ref, path)
 
 
 def check_manifest_change(
@@ -153,10 +104,10 @@ def check_manifest_change(
 
 
 def check_manifests_against_base(base: str) -> list[ManifestError]:
-    paths = _base_manifest_paths(base) | _worktree_manifest_paths()
+    paths = _git_manifest_paths(base) | _worktree_manifest_paths()
     errors: list[ManifestError] = []
     for path in sorted(paths):
-        old_text = _vcs_show(base, path)
+        old_text = _git_show(base, path)
         new_path = Path(path)
         new_text = new_path.read_text() if new_path.exists() else None
         errors.extend(check_manifest_change(path, old_text=old_text, new_text=new_text))
