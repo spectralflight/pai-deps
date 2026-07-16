@@ -60,8 +60,6 @@ torch = [{ index = "pytorch" }]
 [tool.uv.audit]
 # Suppress only no-fix PyTorch advisories. Strict audit runs with --no-config.
 ignore-until-fixed = ["GHSA-rrmf-rvhw-rf47"]
-# Temporary until the package locks can move to setuptools >=83.0.0.
-ignore = ["PYSEC-2026-3447"]
 
 [[tool.uv.index]]
 name = "pytorch"

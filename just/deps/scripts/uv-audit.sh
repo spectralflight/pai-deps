@@ -13,6 +13,9 @@ fi
 
 if [ "${PAI_DEPS_AUDIT_STRICT:-0}" = "1" ]; then
 	args+=(--no-config)
+else
+	# Temporary until all project locks can move to setuptools >=83.0.0.
+	args+=(--ignore PYSEC-2026-3447)
 fi
 
 _audit_project() {

@@ -111,10 +111,12 @@ descriptor before editing package scripts or docs.
 It is acceptable to update dependency locks for documentation-only packages to
 clear CVEs, but do not treat a lock update as proof that the package builds.
 
-`uv audit` allowlists belong in each affected project's `[tool.uv.audit]`
-configuration. Prefer `ignore-until-fixed` for no-fix advisories so newly
-fixable vulnerabilities fail the normal audit. Use `just deps audit-strict` or
-`PAI_DEPS_AUDIT_STRICT=1` to bypass uv config and see the raw audit result.
+Repository-wide `uv audit` allowlists belong in `just/deps/scripts/uv-audit.sh`
+and must be omitted from strict mode. Package-specific allowlists belong in the
+affected project's `[tool.uv.audit]` configuration. Prefer
+`ignore-until-fixed` for no-fix advisories so newly fixable vulnerabilities
+fail the normal audit. Use `just deps audit-strict` or
+`PAI_DEPS_AUDIT_STRICT=1` to bypass all allowlists and see the raw audit result.
 
 ## Release Workflow
 
