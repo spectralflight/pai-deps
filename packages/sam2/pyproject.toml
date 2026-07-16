@@ -11,3 +11,7 @@ dependencies = [
 
 [tool.uv.sources]
 pai-deps = { path = "../..", editable = true }
+
+[tool.uv.audit]
+# Temporary until the package lock can move to setuptools >=83.0.0.
+ignore = ["PYSEC-2026-3447"]

@@ -41,3 +41,5 @@ ignore-until-fixed = [
     "GHSA-rrmf-rvhw-rf47",
     "PYSEC-2026-139",
 ]
+# Temporary until the package lock can move to setuptools >=83.0.0.
+ignore = ["PYSEC-2026-3447"]
