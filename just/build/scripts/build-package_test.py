@@ -58,6 +58,7 @@ def _run_build_script(
         "NATTEN_N_WORKERS": "99",
         "PATH": os.environ["PATH"],
         "PYTHONPATH": str(ROOT_DIR),
+        "UV_PYTHON_CACHE_DIR": str(work_dir / "uv-python-cache"),
         "USER": "tester",
     }
     if env_file is not None:
@@ -113,6 +114,7 @@ def test_build_script_loads_explicit_env_file(tmp_path: Path) -> None:
     assert "TORCH_CUDA_ARCH_LIST=9.0\n" in build_env
     assert "NATTEN_CUDA_ARCH=9.0\n" in build_env
     assert "SPACED_VALUE=hello world\n" in build_env
+    assert f"UV_PYTHON_CACHE_DIR={tmp_path / 'uv-python-cache'}\n" in build_env
     assert "HOST_ONLY_VARIABLE=must-not-leak\n" not in build_env
     assert "CUDA_VERSION=12.8\n" not in build_env
 

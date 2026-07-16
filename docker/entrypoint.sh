@@ -46,31 +46,25 @@ if [ "$(id -u)" -eq 0 ]; then
 		useradd --uid "${build_uid}" --gid "${build_gid}" --home-dir "${build_home}" --create-home --shell /bin/bash paideps
 	fi
 	build_user="$(getent passwd "${build_uid}" | cut -d: -f1)"
+	install -d -o "${build_uid}" -g "${build_gid}" "${build_home}"
 
 	export HOME="${build_home}"
 	export USER="${build_user}"
-	export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/cache/xdg}"
+	export XDG_CACHE_HOME="${XDG_CACHE_HOME:-${HOME}/.cache}"
 	export XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 	export XDG_BIN_HOME="${XDG_BIN_HOME:-${HOME}/.local/bin}"
-	export UV_CACHE_DIR="${UV_CACHE_DIR:-/cache/uv}"
+	export UV_CACHE_DIR="${UV_CACHE_DIR:-${XDG_CACHE_HOME}/uv}"
+	export UV_PYTHON_CACHE_DIR="${UV_PYTHON_CACHE_DIR:-${XDG_CACHE_HOME}/uv-python}"
 	export UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT:-${HOME}/.venv/pai-deps}"
-	export CCACHE_DIR="${CCACHE_DIR:-/cache/ccache}"
+	export CCACHE_DIR="${CCACHE_DIR:-${XDG_CACHE_HOME}/ccache}"
 	export PATH="${PATH}:${XDG_BIN_HOME}"
 
-	mkdir -p \
-		"${HOME}" \
+	gosu "${build_uid}:${build_gid}" mkdir -p \
 		"${XDG_CACHE_HOME}" \
 		"${XDG_DATA_HOME}" \
 		"${XDG_BIN_HOME}" \
 		"${UV_CACHE_DIR}" \
-		"$(dirname "${UV_PROJECT_ENVIRONMENT}")" \
-		"${CCACHE_DIR}"
-	chown -R "${build_uid}:${build_gid}" \
-		"${HOME}" \
-		"${XDG_CACHE_HOME}" \
-		"${XDG_DATA_HOME}" \
-		"${XDG_BIN_HOME}" \
-		"${UV_CACHE_DIR}" \
+		"${UV_PYTHON_CACHE_DIR}" \
 		"$(dirname "${UV_PROJECT_ENVIRONMENT}")" \
 		"${CCACHE_DIR}"
 

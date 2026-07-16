@@ -24,7 +24,10 @@ EOF
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../../.." && pwd)"
 cuda_version="${PAI_DEPS_DOCKER_CUDA_VERSION:-12.8.1}"
-cache_volume="${PAI_DEPS_DOCKER_CACHE_VOLUME:-pai-deps-cache}"
+host_cache_home="${XDG_CACHE_HOME:-${HOME}/.cache}"
+uv_cache_dir="${UV_CACHE_DIR:-${host_cache_home}/uv}"
+uv_python_cache_dir="${UV_PYTHON_CACHE_DIR:-${host_cache_home}/uv-python}"
+ccache_dir="${CCACHE_DIR:-${host_cache_home}/ccache}"
 tty_mode="auto"
 docker_as_root="0"
 build_args=()
@@ -108,6 +111,20 @@ never) ;;
 	;;
 esac
 
+if [[ "${docker_as_root}" == "1" ]]; then
+	cache_args=(-v /cache/uv -v /cache/uv-python -v /cache/ccache)
+else
+	mkdir -p "${uv_cache_dir}" "${uv_python_cache_dir}" "${ccache_dir}"
+	uv_cache_dir="$(realpath "${uv_cache_dir}")"
+	uv_python_cache_dir="$(realpath "${uv_python_cache_dir}")"
+	ccache_dir="$(realpath "${ccache_dir}")"
+	cache_args=(
+		-v "${uv_cache_dir}:/cache/uv"
+		-v "${uv_python_cache_dir}:/cache/uv-python"
+		-v "${ccache_dir}:/cache/ccache"
+	)
+fi
+
 image_tag="$(docker build --build-arg="CUDA_VERSION=${cuda_version}" "${build_args[@]}" -q "${repo_root}")"
 
 docker run \
@@ -118,17 +135,14 @@ docker run \
 	-e PAI_DEPS_BUILD_GID="$(id -g)" \
 	-e PAI_DEPS_BUILD_HOME="/home/paideps" \
 	-e PAI_DEPS_DOCKER_AS_ROOT="${docker_as_root}" \
-	-e XDG_CACHE_HOME="/cache/xdg" \
-	-e XDG_DATA_HOME="/home/cosmos/.local/share" \
-	-e XDG_BIN_HOME="/home/cosmos/.local/bin" \
 	-e UV_CACHE_DIR="/cache/uv" \
-	-e UV_PROJECT_ENVIRONMENT="/home/cosmos/.venv/pai-deps" \
+	-e UV_PYTHON_CACHE_DIR="/cache/uv-python" \
 	-e CCACHE_DIR="/cache/ccache" \
 	-e PAI_DEPS_DOCKER_IMAGE="${image_tag}" \
 	-e PAI_DEPS_BUILD_ENV_FILE="${env_file}" \
 	-e PAI_DEPS_BUILD_ENV="${PAI_DEPS_BUILD_ENV:-}" \
 	-v "${repo_root}:/app" \
-	-v "${cache_volume}:/cache" \
+	"${cache_args[@]}" \
 	"${run_args[@]}" \
 	"${image_tag}" \
 	"${command[@]}"
