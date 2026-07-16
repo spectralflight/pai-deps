@@ -23,6 +23,11 @@ export PATH="${PATH-}:${HOME}/.local/bin"
 build_uid="${PAI_DEPS_BUILD_UID:-1000}"
 build_gid="${PAI_DEPS_BUILD_GID:-${build_uid}}"
 
+if [[ ! "${build_uid}" =~ ^[1-9][0-9]*$ || ! "${build_gid}" =~ ^[1-9][0-9]*$ ]]; then
+	echo "Error: PAI_DEPS_BUILD_UID and PAI_DEPS_BUILD_GID must be non-root numeric IDs." >&2
+	exit 1
+fi
+
 if [ "$(id -u)" -eq 0 ]; then
 	build_home="${PAI_DEPS_BUILD_HOME:-/home/paideps}"
 

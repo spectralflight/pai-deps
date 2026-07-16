@@ -24,12 +24,9 @@ COMMON_PIP_WHEEL_HELPER_TOKENS = [
 ]
 UV_BUILD_HELPER_TOKENS = ["uv build", "--wheel", "-o", '"$@"']
 LICENSE_CONFIRMATION_ENV_VARS = ("I_CONFIRM_THIS_IS_NOT_A_LICENSE_VIOLATION",)
-PRIVILEGED_BUILD_COMMAND = re.compile(
-    r"(^|[;&|])\s*(?:sudo\s+)?(?:apt|apt-get|chown|dpkg)\b",
-    re.MULTILINE,
-)
+PRIVILEGED_BUILD_COMMAND = re.compile(r"\b(?:apt|apt-get|chown|dpkg|sudo)\b")
 SYSTEM_PREFIX_WRITE = re.compile(
-    r"(^|[;&|])\s*(?:cp|install|ln|mkdir|mv|rm)\b[^\n]*(?:/etc|/opt|/usr)(?:/|\s|$)",
+    r"(?:\b(?:cp|install|ln|mkdir|mv|rm|tee|touch)\b[^\n]*|>{1,2}\s*)(?:/etc|/opt|/usr)(?:/|\s|$)",
     re.MULTILINE,
 )
 
@@ -39,6 +36,10 @@ def _script_text(package: PackageDescriptor) -> str:
     for script in package.build.prebuild_scripts:
         parts.append((package.directory / script).read_text())
     return "\n".join(parts)
+
+
+def _executable_shell_text(source: str) -> str:
+    return "\n".join(line for line in source.splitlines() if not line.lstrip().startswith("#"))
 
 
 def _check_contains(source: str, token: str, *, label: str) -> list[str]:
@@ -79,9 +80,10 @@ def _check_package(package: PackageDescriptor) -> list[str]:
         errors.extend(_check_contains(text, revision, label=label))
     for env_name in sorted(set(package.build.env_exports) | set(package.build.env_defaults)):
         errors.extend(_check_contains(text, env_name, label=label))
-    if PRIVILEGED_BUILD_COMMAND.search(text):
+    executable_text = _executable_shell_text(text)
+    if PRIVILEGED_BUILD_COMMAND.search(executable_text):
         errors.append(f"{label}: package build scripts must not run privileged system commands")
-    if SYSTEM_PREFIX_WRITE.search(text):
+    if SYSTEM_PREFIX_WRITE.search(executable_text):
         errors.append(f"{label}: package build scripts must not write to system prefixes")
     for script in package.build.prebuild_scripts:
         if not (package.directory / script).is_file():

@@ -46,11 +46,56 @@ def test_docker_run_honors_explicit_host_cache_directories(tmp_path: Path) -> No
     assert all(path.is_dir() for path in cache_dirs.values())
 
 
+def test_docker_run_mounts_only_the_fixed_output_destination(tmp_path: Path) -> None:
+    output_dir = tmp_path / "wheelhouse"
+    output_dir.mkdir()
+
+    args = _run_with_fake_docker(tmp_path, output_dir=output_dir)
+
+    assert f"{output_dir}:/pai-deps-output" in _mounts(args)
+
+
+def test_docker_run_rejects_root_host_identity(tmp_path: Path) -> None:
+    result, args_path = _invoke_with_fake_docker(tmp_path, uid=0)
+
+    assert result.returncode != 0
+    assert "require a non-root host UID and GID" in result.stderr
+    assert not args_path.exists()
+
+
+def test_docker_run_treats_removed_raw_passthrough_as_container_command(tmp_path: Path) -> None:
+    result, args_path = _invoke_with_fake_docker(
+        tmp_path,
+        raw_arguments=["--run-arg", "--entrypoint", "/bin/bash"],
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    args = args_path.read_text().splitlines()
+    image_index = args.index("sha256:test-image")
+    assert args[image_index + 1 :] == ["--run-arg", "--entrypoint", "/bin/bash"]
+
+
 def _run_with_fake_docker(
     tmp_path: Path,
     *,
     cache_dirs: dict[str, Path] | None = None,
+    output_dir: Path | None = None,
 ) -> list[str]:
+    result, args_path = _invoke_with_fake_docker(tmp_path, cache_dirs=cache_dirs, output_dir=output_dir)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    return args_path.read_text().splitlines()
+
+
+def _invoke_with_fake_docker(
+    tmp_path: Path,
+    *,
+    cache_dirs: dict[str, Path] | None = None,
+    output_dir: Path | None = None,
+    uid: int = 1234,
+    gid: int = 1234,
+    raw_arguments: list[str] | None = None,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     args_path = tmp_path / "docker-args.txt"
@@ -71,9 +116,26 @@ def _run_with_fake_docker(
         )
     )
     fake_docker.chmod(0o755)
+    fake_id = fake_bin / "id"
+    fake_id.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            case "$1" in
+              -u) printf '%s\n' "${FAKE_UID}" ;;
+              -g) printf '%s\n' "${FAKE_GID}" ;;
+              *) exit 2 ;;
+            esac
+            """
+        )
+    )
+    fake_id.chmod(0o755)
 
     env = {
         "FAKE_DOCKER_ARGS": str(args_path),
+        "FAKE_GID": str(gid),
+        "FAKE_UID": str(uid),
         "HOME": str(tmp_path / "home"),
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
     }
@@ -81,7 +143,12 @@ def _run_with_fake_docker(
         env.update({name: str(path) for name, path in cache_dirs.items()})
 
     command = [str(DOCKER_RUN_SCRIPT), "--no-tty"]
-    command.extend(["--", "true"])
+    if output_dir is not None:
+        command.extend(["--output-dir", str(output_dir)])
+    if raw_arguments is None:
+        command.extend(["--", "true"])
+    else:
+        command.extend(raw_arguments)
     result = subprocess.run(
         command,
         env=env,
@@ -89,9 +156,7 @@ def _run_with_fake_docker(
         capture_output=True,
         timeout=30,
     )
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    return args_path.read_text().splitlines()
+    return result, args_path
 
 
 def _mounts(args: list[str]) -> list[str]:

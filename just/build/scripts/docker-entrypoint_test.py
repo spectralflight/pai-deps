@@ -65,6 +65,28 @@ def test_entrypoint_creates_configured_home_for_existing_uid(tmp_path: Path) -> 
     ]
 
 
+def test_entrypoint_rejects_root_build_identity(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_executable(fake_bin / "id", "printf '0\n'")
+
+    result = subprocess.run(
+        [str(ENTRYPOINT), "true"],
+        env={
+            "HOME": str(tmp_path / "home"),
+            "PAI_DEPS_BUILD_GID": "1234",
+            "PAI_DEPS_BUILD_UID": "0",
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        },
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert result.returncode != 0
+    assert "must be non-root numeric IDs" in result.stderr
+
+
 def _write_executable(path: Path, body: str) -> None:
     path.write_text(
         textwrap.dedent(

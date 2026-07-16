@@ -15,7 +15,7 @@ Options:
   --no-tty                Do not allocate an interactive TTY
   --tty                   Force an interactive TTY
   --build-arg ARG         Extra docker build argument, e.g. FOO=bar
-  --run-arg ARG           Extra docker run argument
+  --output-dir DIRECTORY  Mount an absolute host directory at /pai-deps-output
   -h, --help              Show this help
 EOF
 }
@@ -29,7 +29,7 @@ uv_python_cache_dir="${UV_PYTHON_CACHE_DIR:-${host_cache_home}/uv-python}"
 ccache_dir="${CCACHE_DIR:-${host_cache_home}/ccache}"
 tty_mode="auto"
 build_args=()
-run_args=()
+volume_args=()
 command=()
 
 while [[ $# -gt 0 ]]; do
@@ -50,8 +50,13 @@ while [[ $# -gt 0 ]]; do
 		build_args+=("--build-arg=$2")
 		shift 2
 		;;
-	--run-arg)
-		run_args+=("$2")
+	--output-dir)
+		if [[ "$2" != /* || ! -d "$2" ]]; then
+			echo "Error: --output-dir must be an existing absolute directory: $2" >&2
+			exit 1
+		fi
+		output_dir="$(realpath "$2")"
+		volume_args=(-v "${output_dir}:/pai-deps-output")
 		shift 2
 		;;
 	-h | --help)
@@ -69,6 +74,13 @@ while [[ $# -gt 0 ]]; do
 		;;
 	esac
 done
+
+host_uid="$(id -u)"
+host_gid="$(id -g)"
+if [[ "${host_uid}" == "0" || "${host_gid}" == "0" ]]; then
+	echo "Error: Docker builds require a non-root host UID and GID." >&2
+	exit 1
+fi
 
 env_file="${PAI_DEPS_BUILD_ENV_FILE:-}"
 if [[ -n "${env_file}" ]]; then
@@ -121,8 +133,8 @@ docker run \
 	"${tty_args[@]}" \
 	--rm \
 	--runtime=nvidia \
-	-e PAI_DEPS_BUILD_UID="$(id -u)" \
-	-e PAI_DEPS_BUILD_GID="$(id -g)" \
+	-e PAI_DEPS_BUILD_UID="${host_uid}" \
+	-e PAI_DEPS_BUILD_GID="${host_gid}" \
 	-e PAI_DEPS_BUILD_HOME="/home/paideps" \
 	-e UV_CACHE_DIR="/cache/uv" \
 	-e UV_PYTHON_CACHE_DIR="/cache/uv-python" \
@@ -132,6 +144,6 @@ docker run \
 	-e PAI_DEPS_BUILD_ENV="${PAI_DEPS_BUILD_ENV:-}" \
 	-v "${repo_root}:/app" \
 	"${cache_args[@]}" \
-	"${run_args[@]}" \
+	"${volume_args[@]}" \
 	"${image_tag}" \
 	"${command[@]}"

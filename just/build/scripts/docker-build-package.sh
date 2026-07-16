@@ -38,7 +38,7 @@ if [[ "${build_dir}" = /* ]]; then
 	mkdir -p "${build_dir}"
 	host_build_dir="$(cd "${build_dir}" && pwd)"
 	build_dir="/pai-deps-output"
-	docker_run_args+=("--run-arg" "-v" "--run-arg" "${host_build_dir}:${build_dir}")
+	docker_run_args+=("--output-dir" "${host_build_dir}")
 fi
 if [[ ! "${attempts}" =~ ^[1-9][0-9]*$ ]]; then
 	echo "Error: PAI_DEPS_BUILD_ATTEMPTS must be a positive integer." >&2

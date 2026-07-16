@@ -106,7 +106,9 @@ script = "build.sh"
 system_packages = ["python3-dev"]
 """
     )
-    (package_dir / "build.sh").write_text('apt-get install python3-dev\npai_deps_uv_build_wheel "$@"\n')
+    (package_dir / "build.sh").write_text(
+        '# apt-get belongs in image preparation\nif env apt-get install python3-dev; then :; fi\npai_deps_uv_build_wheel "$@"\n'
+    )
 
     packages = discover_package_descriptors(tmp_path)
 
@@ -131,15 +133,23 @@ backend = "uv-build"
 script = "build.sh"
 """
     )
-    (package_dir / "build.sh").write_text(
-        'ln -sf build/libpkg.so /usr/local/lib/libpkg.so\npai_deps_uv_build_wheel "$@"\n'
-    )
+    (package_dir / "build.sh").write_text('printf data | tee /usr/local/lib/libpkg.so\npai_deps_uv_build_wheel "$@"\n')
 
     packages = discover_package_descriptors(tmp_path)
 
     errors = check_package_build_contracts.check_packages(packages)
 
     assert any("must not write to system prefixes" in error for error in errors)
+
+
+def test_decord_stages_native_library_for_wheel_without_system_install() -> None:
+    package = next(package for package in discover_package_descriptors() if package.name == "decord")
+    build_script = package.build_script_path.read_text()
+    native_build_script = (package.directory / "build_lib.sh").read_text()
+
+    assert 'export DECORD_LIBRARY_PATH="${native_prefix}/lib"' in build_script
+    assert 'cmake --install . --prefix "${native_prefix}"' in native_build_script
+    assert "/usr/local/lib/libdecord.so" not in build_script + native_build_script
 
 
 def test_detects_license_confirmation_without_review_metadata(tmp_path: Path) -> None:
