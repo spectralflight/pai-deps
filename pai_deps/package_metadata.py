@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ VALID_BACKENDS = {"pip-wheel-git", "uv-build"}
 VALID_STATUSES = {"maintained", "smoke", "historical", "unknown"}
 VALID_GPU_RISKS = {"none", "low", "medium", "high"}
 VALID_LICENSE_CONFIDENCES = {"high", "medium", "low", "unknown"}
+SYSTEM_PACKAGE_PATTERN = re.compile(r"[a-z0-9][a-z0-9+.-]*(?::[a-z0-9][a-z0-9-]*)?")
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +89,14 @@ def _string_tuple(data: dict[str, Any], key: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _system_package_tuple(data: dict[str, Any]) -> tuple[str, ...]:
+    packages = _string_tuple(data, "system_packages")
+    invalid = [package for package in packages if SYSTEM_PACKAGE_PATTERN.fullmatch(package) is None]
+    if invalid:
+        raise ValueError(f"system_packages contains invalid Debian package names: {invalid!r}")
+    return packages
+
+
 def _string_dict(data: dict[str, Any], key: str) -> dict[str, str]:
     value = data.get(key, {})
     if not isinstance(value, dict) or not all(isinstance(item_key, str) for item_key in value):
@@ -131,7 +141,7 @@ def load_package_descriptor(descriptor_path: Path) -> PackageDescriptor:
         local=bool(build_data.get("local", False)),
         requires_torch=bool(build_data.get("requires_torch", True)),
         prebuild_scripts=_string_tuple(build_data, "prebuild_scripts"),
-        system_packages=_string_tuple(build_data, "system_packages"),
+        system_packages=_system_package_tuple(build_data),
         revision_overrides=_string_dict(build_data, "revision_overrides"),
         env_exports=_string_tuple(env_data, "exports"),
         env_defaults=_string_dict(env_data, "defaults"),

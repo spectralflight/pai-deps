@@ -26,9 +26,10 @@ torchcodec `0.9` with Torch `2.9` and Python `>=3.10, <=3.14`.
 
 ## Build Environment
 
-Local script installs FFmpeg development packages, sets `pybind11_DIR`, sets
-`I_CONFIRM_THIS_IS_NOT_A_LICENSE_VIOLATION=1`, sets `ENABLE_CUDA=1`, and
-builds from `git+https://github.com/meta-pytorch/torchcodec.git`.
+The package descriptor supplies the FFmpeg development package inventory for
+Docker image preparation. The non-root build script sets `pybind11_DIR`, sets
+`I_CONFIRM_THIS_IS_NOT_A_LICENSE_VIOLATION=1`, sets `ENABLE_CUDA=1`, and builds
+from `git+https://github.com/meta-pytorch/torchcodec.git`.
 
 The package descriptor marks this as requiring license review so agents cannot
 silently carry the acknowledgement flag without a visible release-review note.

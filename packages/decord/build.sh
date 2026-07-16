@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-./build_lib.sh
-ln -sf /usr/local/lib/libdecord.so /usr/local/cuda/lib64/libdecord.so
+native_prefix="$(mktemp -d)"
+trap 'rm -rf "${native_prefix}"' EXIT
+./build_lib.sh "${native_prefix}"
+export DECORD_LIBRARY_PATH="${native_prefix}/lib"
 pai_deps_pip_wheel \
 	"git+https://github.com/dmlc/decord.git@v${PACKAGE_VERSION}#subdirectory=python" \
 	"$@"

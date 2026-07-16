@@ -18,6 +18,12 @@
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 interface_dir="${DECORD_VIDEO_CODEC_INTERFACE_DIR:-${script_dir}/video-codec-interface-13.0.19/include}"
 
+if [[ $# -ne 1 ]]; then
+	echo "Usage: $0 NATIVE_INSTALL_PREFIX" >&2
+	exit 1
+fi
+native_prefix="$1"
+
 arch="$(uname -m)"
 case "${arch}" in
 x86_64)
@@ -74,21 +80,7 @@ if [[ ! -f "${interface_dir}/nvcuvid.h" || ! -f "${interface_dir}/cuviddec.h" ||
 	exit 1
 fi
 
-apt-get update
-apt-get install -y --no-install-recommends \
-	build-essential \
-	make \
-	cmake \
-	ffmpeg \
-	libavcodec-dev \
-	libavfilter-dev \
-	libavformat-dev \
-	libavutil-dev
-
 video_codec_lib_dir="$(_find_video_codec_lib_dir)"
-cp "${video_codec_lib_dir}/libnvcuvid.so" /usr/local/cuda/lib64/
-cp "${video_codec_lib_dir}/libnvidia-encode.so" /usr/local/cuda/lib64/
-cp "${interface_dir}/"* /usr/local/cuda/include/
 
 temp_dir="$(mktemp -d)"
 trap 'rm -rf "${temp_dir}"' EXIT
@@ -107,10 +99,12 @@ cmake_args=(
 	..
 	-DUSE_CUDA=ON
 	-DCMAKE_BUILD_TYPE=Release
+	"-DCMAKE_CXX_FLAGS=-I${interface_dir}"
+	"-DCUDA_NVCUVID_LIBRARY=${video_codec_lib_dir}/libnvcuvid.so"
 )
 if [[ -n "${DECORD_CUDA_ARCHITECTURES:-}" ]]; then
 	cmake_args+=("-DCMAKE_CUDA_ARCHITECTURES=${DECORD_CUDA_ARCHITECTURES}")
 fi
 cmake "${cmake_args[@]}"
-make -j "${DECORD_BUILD_JOBS:-$(nproc)}"
-make install
+cmake --build . --parallel "${DECORD_BUILD_JOBS:-$(nproc)}"
+cmake --install . --prefix "${native_prefix}"

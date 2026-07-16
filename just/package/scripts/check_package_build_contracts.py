@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -23,6 +24,14 @@ COMMON_PIP_WHEEL_HELPER_TOKENS = [
 ]
 UV_BUILD_HELPER_TOKENS = ["uv build", "--wheel", "-o", '"$@"']
 LICENSE_CONFIRMATION_ENV_VARS = ("I_CONFIRM_THIS_IS_NOT_A_LICENSE_VIOLATION",)
+PRIVILEGED_BUILD_COMMAND = re.compile(
+    r"(^|[;&|])\s*(?:sudo\s+)?(?:apt|apt-get|chown|dpkg)\b",
+    re.MULTILINE,
+)
+SYSTEM_PREFIX_WRITE = re.compile(
+    r"(^|[;&|])\s*(?:cp|install|ln|mkdir|mv|rm)\b[^\n]*(?:/etc|/opt|/usr)(?:/|\s|$)",
+    re.MULTILINE,
+)
 
 
 def _script_text(package: PackageDescriptor) -> str:
@@ -70,8 +79,10 @@ def _check_package(package: PackageDescriptor) -> list[str]:
         errors.extend(_check_contains(text, revision, label=label))
     for env_name in sorted(set(package.build.env_exports) | set(package.build.env_defaults)):
         errors.extend(_check_contains(text, env_name, label=label))
-    for system_package in package.build.system_packages:
-        errors.extend(_check_contains(text, system_package, label=label))
+    if PRIVILEGED_BUILD_COMMAND.search(text):
+        errors.append(f"{label}: package build scripts must not run privileged system commands")
+    if SYSTEM_PREFIX_WRITE.search(text):
+        errors.append(f"{label}: package build scripts must not write to system prefixes")
     for script in package.build.prebuild_scripts:
         if not (package.directory / script).is_file():
             errors.append(f"{label}: missing prebuild script {script}")

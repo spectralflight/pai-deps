@@ -34,8 +34,8 @@ version argument is retained only for this repo's wheel local-version naming.
 Local helper uses the checked-in Video Codec interface headers, locates
 `libnvcuvid.so` and `libnvidia-encode.so` from a caller-provided or system
 library directory, configures CMake with `-DUSE_CUDA=ON
--DCMAKE_BUILD_TYPE=Release`, installs `libdecord.so`, then wheels the Python
-package from the upstream `python` subdirectory.
+-DCMAKE_BUILD_TYPE=Release`, installs `libdecord.so` into a temporary user-owned
+prefix, then wheels the Python package from the upstream `python` subdirectory.
 
 Upstream build knobs include `-DUSE_CUDA=ON`, optional CUDA path,
 `-DCMAKE_CUDA_COMPILER`, and optional `-DFFMPEG_DIR`.
@@ -83,16 +83,14 @@ Use GPU/NVDEC smoke only on a host with driver/video decode support.
 
 - FFmpeg 6 source patches in `build_lib.sh` are brittle against newer decord or
   FFmpeg changes.
-- Decord installs system packages during the package prebuild step, so its
-  Docker build currently needs `PAI_DEPS_DOCKER_AS_ROOT=1`.
+- The package-specific Docker image installs the descriptor's system packages
+  before the non-root package build starts.
 - The repo intentionally vendors only the NVIDIA Video Codec interface headers.
   The full Video Codec SDK archive and binary stubs are not checked in because
   the SDK license restricts stand-alone redistribution of SDK portions.
 
 ## Future Fixes
 
-- Split system package installation from untrusted package build code so Decord
-  can install apt packages as root and compile as the non-root build user.
 - Replace the link-library discovery with a base image or setup phase that
   provides explicit Video Codec SDK stubs without committing SDK binaries to
   this public repository.
@@ -101,7 +99,7 @@ Use GPU/NVDEC smoke only on a host with driver/video decode support.
 
 Imported from upstream docs/source and package research on 2026-06-27. A
 Docker smoke on 2026-06-28 used
-`PAI_DEPS_DOCKER_AS_ROOT=1 PAI_DEPS_BUILD_ENV='DECORD_BUILD_JOBS=1 DECORD_CUDA_ARCHITECTURES=120'`
+`PAI_DEPS_BUILD_ENV='DECORD_BUILD_JOBS=1 DECORD_CUDA_ARCHITECTURES=120'`
 and built `decord==0.6.0` for Python 3.12/CUDA 12.8/Torch-name 2.9 in about a
 minute after skipping an unnecessary Torch install. The CPU decode smoke read a
 two-frame 16x16 MP4 and returned a nonempty `uint8` frame with shape

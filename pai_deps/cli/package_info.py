@@ -118,6 +118,16 @@ def show_package(name: str, *, json_output: bool) -> int:
     return 0
 
 
+def print_system_packages(name: str) -> int:
+    try:
+        package = _find_package(name)
+    except KeyError:
+        print(f"Error: unknown package: {name}", file=sys.stderr)
+        return 1
+    print(" ".join(package.build.system_packages))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -129,11 +139,19 @@ def main() -> int:
     show_parser.add_argument("name")
     show_parser.add_argument("--json", action="store_true", help="Print JSON.")
 
+    system_packages_parser = subparsers.add_parser(
+        "system-packages",
+        help="Print the validated Docker system-package build argument.",
+    )
+    system_packages_parser.add_argument("name")
+
     args = parser.parse_args()
     if args.command == "list":
         return list_packages(json_output=args.json)
     if args.command == "show":
         return show_package(args.name, json_output=args.json)
+    if args.command == "system-packages":
+        return print_system_packages(args.name)
     raise AssertionError(args.command)
 
 

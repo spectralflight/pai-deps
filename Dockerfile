@@ -83,6 +83,16 @@ RUN set -eux; \
     install -m 0755 /tmp/just /usr/local/bin/just; \
     rm -rf /tmp/uv.tar.gz "/tmp/uv-${uv_arch}" /tmp/just.tar.gz /tmp/just
 
+# Package descriptors provide this validated inventory. Installing it while
+# constructing the image keeps package compilation and upstream build code unprivileged.
+ARG PAI_DEPS_SYSTEM_PACKAGES=""
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt \
+    if [ -n "${PAI_DEPS_SYSTEM_PACKAGES}" ]; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends ${PAI_DEPS_SYSTEM_PACKAGES}; \
+    fi
+
 # Set the working directory for the application.
 WORKDIR /app
 

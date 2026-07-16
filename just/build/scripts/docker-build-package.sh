@@ -10,8 +10,6 @@ Usage: just/build/scripts/docker-build-package.sh PACKAGE VERSION PYTHON_VERSION
 
 Run a package build inside Docker. Set PAI_DEPS_BUILD_ATTEMPTS to retry
 transient network failures while reusing Docker and uv caches.
-Set PAI_DEPS_DOCKER_AS_ROOT=1 for packages whose build scripts must install
-system packages inside the container.
 EOF
 }
 
@@ -30,14 +28,11 @@ shift 5
 attempts="${PAI_DEPS_BUILD_ATTEMPTS:-1}"
 retry_delay="${PAI_DEPS_BUILD_RETRY_DELAY:-30}"
 cuda_version="${PAI_DEPS_DOCKER_CUDA_VERSION:-12.8.1}"
-run_as_root="${PAI_DEPS_DOCKER_AS_ROOT:-0}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exit_code=0
 docker_run_args=()
-
-if [[ "${run_as_root}" == "1" || "${run_as_root}" == "true" ]]; then
-	docker_run_args+=("--root")
-fi
+system_packages="$(uv run --frozen --no-dev pai-deps-package-info system-packages "${package_name}")"
+docker_run_args+=("--build-arg" "PAI_DEPS_SYSTEM_PACKAGES=${system_packages}")
 
 if [[ "${build_dir}" = /* ]]; then
 	mkdir -p "${build_dir}"
@@ -45,10 +40,6 @@ if [[ "${build_dir}" = /* ]]; then
 	build_dir="/pai-deps-output"
 	docker_run_args+=("--run-arg" "-v" "--run-arg" "${host_build_dir}:${build_dir}")
 fi
-if [[ "${run_as_root}" == "1" || "${run_as_root}" == "true" ]]; then
-	docker_run_args+=("--run-arg" "-e" "--run-arg" "PAI_DEPS_CHOWN_PATHS=${build_dir}")
-fi
-
 if [[ ! "${attempts}" =~ ^[1-9][0-9]*$ ]]; then
 	echo "Error: PAI_DEPS_BUILD_ATTEMPTS must be a positive integer." >&2
 	exit 1

@@ -37,6 +37,7 @@ backend = "uv-build"
     assert package.project_name == "sample"
     assert package.build.script == "build.sh"
     assert package.build.requires_torch is True
+    assert package.build.system_packages == ()
     assert package.docs == "agents/build-notes.md"
     assert package.license.expression == "NOASSERTION"
 
@@ -69,3 +70,45 @@ backend = "uv-build"
     assert package.license.expression == "Apache-2.0"
     assert package.license.files == ("LICENSE",)
     assert package.license.confidence == "high"
+
+
+def test_loads_system_packages(tmp_path: Path) -> None:
+    descriptor = _write_descriptor(
+        tmp_path,
+        'system_packages = ["python3-dev", "libavcodec-dev:amd64"]',
+    )
+
+    package = load_package_descriptor(descriptor)
+
+    assert package.build.system_packages == ("python3-dev", "libavcodec-dev:amd64")
+
+
+def test_rejects_unsafe_system_package_name(tmp_path: Path) -> None:
+    descriptor = _write_descriptor(tmp_path, 'system_packages = ["python3-dev;whoami"]')
+
+    try:
+        load_package_descriptor(descriptor)
+    except ValueError as error:
+        assert "invalid Debian package names" in str(error)
+    else:
+        raise AssertionError("unsafe system package name was accepted")
+
+
+def _write_descriptor(tmp_path: Path, build_fields: str) -> Path:
+    package_dir = tmp_path / "sample"
+    package_dir.mkdir()
+    descriptor = package_dir / "pai-package.toml"
+    descriptor.write_text(
+        f"""
+schema_version = 1
+name = "sample"
+status = "smoke"
+upstream = "local"
+gpu_risk = "none"
+
+[build]
+backend = "uv-build"
+{build_fields}
+"""
+    )
+    return descriptor

@@ -89,6 +89,59 @@ revision = "v{package_version}"
     assert any("license_files=" in error for error in errors)
 
 
+def test_detects_privileged_package_build_command(tmp_path: Path) -> None:
+    package_dir = tmp_path / "pkg"
+    package_dir.mkdir()
+    (package_dir / "pai-package.toml").write_text(
+        """
+schema_version = 1
+name = "pkg"
+status = "smoke"
+upstream = "https://example.invalid/pkg"
+gpu_risk = "none"
+
+[build]
+backend = "uv-build"
+script = "build.sh"
+system_packages = ["python3-dev"]
+"""
+    )
+    (package_dir / "build.sh").write_text('apt-get install python3-dev\npai_deps_uv_build_wheel "$@"\n')
+
+    packages = discover_package_descriptors(tmp_path)
+
+    errors = check_package_build_contracts.check_packages(packages)
+
+    assert any("must not run privileged system commands" in error for error in errors)
+
+
+def test_detects_package_build_write_to_system_prefix(tmp_path: Path) -> None:
+    package_dir = tmp_path / "pkg"
+    package_dir.mkdir()
+    (package_dir / "pai-package.toml").write_text(
+        """
+schema_version = 1
+name = "pkg"
+status = "smoke"
+upstream = "https://example.invalid/pkg"
+gpu_risk = "none"
+
+[build]
+backend = "uv-build"
+script = "build.sh"
+"""
+    )
+    (package_dir / "build.sh").write_text(
+        'ln -sf build/libpkg.so /usr/local/lib/libpkg.so\npai_deps_uv_build_wheel "$@"\n'
+    )
+
+    packages = discover_package_descriptors(tmp_path)
+
+    errors = check_package_build_contracts.check_packages(packages)
+
+    assert any("must not write to system prefixes" in error for error in errors)
+
+
 def test_detects_license_confirmation_without_review_metadata(tmp_path: Path) -> None:
     package_dir = tmp_path / "pkg"
     package_dir.mkdir()

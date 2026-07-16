@@ -46,22 +46,10 @@ def test_docker_run_honors_explicit_host_cache_directories(tmp_path: Path) -> No
     assert all(path.is_dir() for path in cache_dirs.values())
 
 
-def test_docker_run_uses_disposable_caches_as_root(tmp_path: Path) -> None:
-    args = _run_with_fake_docker(tmp_path, root=True)
-
-    assert _mounts(args) == [
-        f"{ROOT_DIR}:/app",
-        "/cache/uv",
-        "/cache/uv-python",
-        "/cache/ccache",
-    ]
-
-
 def _run_with_fake_docker(
     tmp_path: Path,
     *,
     cache_dirs: dict[str, Path] | None = None,
-    root: bool = False,
 ) -> list[str]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -93,8 +81,6 @@ def _run_with_fake_docker(
         env.update({name: str(path) for name, path in cache_dirs.items()})
 
     command = [str(DOCKER_RUN_SCRIPT), "--no-tty"]
-    if root:
-        command.append("--root")
     command.extend(["--", "true"])
     result = subprocess.run(
         command,

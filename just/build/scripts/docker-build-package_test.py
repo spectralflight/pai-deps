@@ -26,7 +26,7 @@ def test_docker_build_package_preserves_failed_exit_code(tmp_path: Path) -> None
     assert "Docker build attempt 1/1" in result.stdout
 
 
-def test_docker_build_package_mounts_absolute_output_and_root_mode(tmp_path: Path) -> None:
+def test_docker_build_package_prepares_system_packages_and_mounts_absolute_output(tmp_path: Path) -> None:
     script = _copy_wrapper_with_fake_docker_run(tmp_path)
     args_path = tmp_path / "docker-run-args.txt"
     output_dir = tmp_path / "wheelhouse"
@@ -41,7 +41,7 @@ def test_docker_build_package_mounts_absolute_output_and_root_mode(tmp_path: Pat
             str(output_dir),
             "--config-settings=--dummy",
         ],
-        env=_test_env(args_path, status=0, docker_as_root=True),
+        env=_test_env(args_path, status=0, system_packages="python3-dev pkg-config"),
         text=True,
         capture_output=True,
         timeout=30,
@@ -52,15 +52,12 @@ def test_docker_build_package_mounts_absolute_output_and_root_mode(tmp_path: Pat
         "--cuda-version",
         "12.8.1",
         "--no-tty",
-        "--root",
+        "--build-arg",
+        "PAI_DEPS_SYSTEM_PACKAGES=python3-dev pkg-config",
         "--run-arg",
         "-v",
         "--run-arg",
         f"{output_dir}:/pai-deps-output",
-        "--run-arg",
-        "-e",
-        "--run-arg",
-        "PAI_DEPS_CHOWN_PATHS=/pai-deps-output",
         "--",
         "just/build/scripts/build-package.sh",
         "cosmos-dummy",
@@ -90,16 +87,30 @@ def _copy_wrapper_with_fake_docker_run(tmp_path: Path) -> Path:
         )
     )
     fake_docker_run.chmod(0o755)
+    fake_uv = scripts_dir / "uv"
+    fake_uv.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            [[ "$1" == "run" ]]
+            [[ "$2" == "--frozen" ]]
+            [[ "$3" == "--no-dev" ]]
+            [[ "$4" == "pai-deps-package-info" ]]
+            [[ "$5" == "system-packages" ]]
+            printf '%s\n' "${FAKE_SYSTEM_PACKAGES:-}"
+            """
+        )
+    )
+    fake_uv.chmod(0o755)
     return script
 
 
-def _test_env(args_path: Path, *, status: int, docker_as_root: bool = False) -> dict[str, str]:
-    env = {
+def _test_env(args_path: Path, *, status: int, system_packages: str = "") -> dict[str, str]:
+    return {
         "PAI_DEPS_BUILD_ATTEMPTS": "1",
         "FAKE_DOCKER_RUN_ARGS": str(args_path),
         "FAKE_DOCKER_RUN_STATUS": str(status),
-        "PATH": os.environ["PATH"],
+        "FAKE_SYSTEM_PACKAGES": system_packages,
+        "PATH": f"{args_path.parent / 'just/build/scripts'}:{os.environ['PATH']}",
     }
-    if docker_as_root:
-        env["PAI_DEPS_DOCKER_AS_ROOT"] = "true"
-    return env

@@ -15,7 +15,6 @@ Options:
   --no-tty                Do not allocate an interactive TTY
   --tty                   Force an interactive TTY
   --build-arg ARG         Extra docker build argument, e.g. FOO=bar
-  --root                  Run the command as container root
   --run-arg ARG           Extra docker run argument
   -h, --help              Show this help
 EOF
@@ -29,7 +28,6 @@ uv_cache_dir="${UV_CACHE_DIR:-${host_cache_home}/uv}"
 uv_python_cache_dir="${UV_PYTHON_CACHE_DIR:-${host_cache_home}/uv-python}"
 ccache_dir="${CCACHE_DIR:-${host_cache_home}/ccache}"
 tty_mode="auto"
-docker_as_root="0"
 build_args=()
 run_args=()
 command=()
@@ -51,10 +49,6 @@ while [[ $# -gt 0 ]]; do
 	--build-arg)
 		build_args+=("--build-arg=$2")
 		shift 2
-		;;
-	--root)
-		docker_as_root="1"
-		shift
 		;;
 	--run-arg)
 		run_args+=("$2")
@@ -111,19 +105,15 @@ never) ;;
 	;;
 esac
 
-if [[ "${docker_as_root}" == "1" ]]; then
-	cache_args=(-v /cache/uv -v /cache/uv-python -v /cache/ccache)
-else
-	mkdir -p "${uv_cache_dir}" "${uv_python_cache_dir}" "${ccache_dir}"
-	uv_cache_dir="$(realpath "${uv_cache_dir}")"
-	uv_python_cache_dir="$(realpath "${uv_python_cache_dir}")"
-	ccache_dir="$(realpath "${ccache_dir}")"
-	cache_args=(
-		-v "${uv_cache_dir}:/cache/uv"
-		-v "${uv_python_cache_dir}:/cache/uv-python"
-		-v "${ccache_dir}:/cache/ccache"
-	)
-fi
+mkdir -p "${uv_cache_dir}" "${uv_python_cache_dir}" "${ccache_dir}"
+uv_cache_dir="$(realpath "${uv_cache_dir}")"
+uv_python_cache_dir="$(realpath "${uv_python_cache_dir}")"
+ccache_dir="$(realpath "${ccache_dir}")"
+cache_args=(
+	-v "${uv_cache_dir}:/cache/uv"
+	-v "${uv_python_cache_dir}:/cache/uv-python"
+	-v "${ccache_dir}:/cache/ccache"
+)
 
 image_tag="$(docker build --build-arg="CUDA_VERSION=${cuda_version}" "${build_args[@]}" -q "${repo_root}")"
 
@@ -134,7 +124,6 @@ docker run \
 	-e PAI_DEPS_BUILD_UID="$(id -u)" \
 	-e PAI_DEPS_BUILD_GID="$(id -g)" \
 	-e PAI_DEPS_BUILD_HOME="/home/paideps" \
-	-e PAI_DEPS_DOCKER_AS_ROOT="${docker_as_root}" \
 	-e UV_CACHE_DIR="/cache/uv" \
 	-e UV_PYTHON_CACHE_DIR="/cache/uv-python" \
 	-e CCACHE_DIR="/cache/ccache" \

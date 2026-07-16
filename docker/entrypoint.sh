@@ -23,19 +23,6 @@ export PATH="${PATH-}:${HOME}/.local/bin"
 build_uid="${PAI_DEPS_BUILD_UID:-1000}"
 build_gid="${PAI_DEPS_BUILD_GID:-${build_uid}}"
 
-if [ "$(id -u)" -eq 0 ] && [ "${PAI_DEPS_DOCKER_AS_ROOT:-0}" = "1" ]; then
-	set +e
-	"$@"
-	status="$?"
-	set -e
-	for path in ${PAI_DEPS_CHOWN_PATHS:-}; do
-		if [ -e "${path}" ]; then
-			chown -R "${build_uid}:${build_gid}" "${path}"
-		fi
-	done
-	exit "${status}"
-fi
-
 if [ "$(id -u)" -eq 0 ]; then
 	build_home="${PAI_DEPS_BUILD_HOME:-/home/paideps}"
 
