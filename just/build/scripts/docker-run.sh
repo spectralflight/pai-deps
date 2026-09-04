@@ -127,6 +127,12 @@ cache_args=(
 	-v "${ccache_dir}:/cache/ccache"
 )
 
+git_commit="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || printf unknown)"
+git_dirty=false
+if ! git -C "${repo_root}" diff --quiet || ! git -C "${repo_root}" diff --cached --quiet; then
+	git_dirty=true
+fi
+
 image_tag="$(docker build --build-arg="CUDA_VERSION=${cuda_version}" "${build_args[@]}" -q "${repo_root}")"
 
 docker run \
@@ -140,6 +146,8 @@ docker run \
 	-e UV_PYTHON_CACHE_DIR="/cache/uv-python" \
 	-e CCACHE_DIR="/cache/ccache" \
 	-e PAI_DEPS_DOCKER_IMAGE="${image_tag}" \
+	-e PAI_DEPS_GIT_COMMIT="${git_commit}" \
+	-e PAI_DEPS_GIT_DIRTY="${git_dirty}" \
 	-e PAI_DEPS_BUILD_ENV_FILE="${env_file}" \
 	-e PAI_DEPS_BUILD_ENV="${PAI_DEPS_BUILD_ENV:-}" \
 	-v "${repo_root}:/app" \

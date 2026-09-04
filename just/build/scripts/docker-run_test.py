@@ -25,6 +25,8 @@ def test_docker_run_selectively_mounts_user_build_caches(tmp_path: Path) -> None
         "UV_PYTHON_CACHE_DIR=/cache/uv-python",
         "CCACHE_DIR=/cache/ccache",
     }
+    assert any(value.startswith("PAI_DEPS_GIT_COMMIT=") for value in _environment(args))
+    assert any(value.startswith("PAI_DEPS_GIT_DIRTY=") for value in _environment(args))
     assert not any("huggingface" in arg.lower() for arg in args)
     assert "--rm" in args
 
