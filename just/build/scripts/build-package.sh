@@ -34,6 +34,14 @@ shift
 export BUILD_DIR="${1}"
 shift
 
+detected_cuda_version=""
+if command -v nvcc >/dev/null 2>&1; then
+	detected_cuda_version="$(nvcc --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p')"
+fi
+if [[ -n "${detected_cuda_version}" ]]; then
+	export CUDA_VERSION="${detected_cuda_version}"
+fi
+
 if [[ ! "${PYTHON_VERSION}" =~ ^[0-9]+\.[0-9]+$ ]]; then
 	echo "Error: Python version must be '<major>.<minor>'." >&2
 	exit 1

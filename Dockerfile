@@ -42,12 +42,16 @@ RUN --mount=type=cache,target=/var/cache/apt \
         tree \
         wget
 
-# Install ffmpeg 6
+ARG PAI_DEPS_INSTALL_FFMPEG="1"
+
+# Install ffmpeg 6 when a package relies on the generic CUDA image's media stack.
 RUN --mount=type=cache,target=/var/cache/apt \
     --mount=type=cache,target=/var/lib/apt \
-    add-apt-repository ppa:ubuntuhandbook1/ffmpeg6 && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg
+    if [ "${PAI_DEPS_INSTALL_FFMPEG}" = "1" ]; then \
+        add-apt-repository ppa:ubuntuhandbook1/ffmpeg6 && \
+        apt-get update && \
+        apt-get install -y --no-install-recommends ffmpeg; \
+    fi
 
 ENV PATH="/usr/lib/ccache:/usr/local/bin:$PATH"
 
