@@ -1,0 +1,24 @@
+[project]
+name = "mmcv"
+version = "0.0.0"
+requires-python = ">=3.10"
+dependencies = [
+    "addict",
+    "build",
+    "ninja",
+    "numpy",
+    "packaging",
+    "pai-deps[build]",
+    "pillow",
+    "pyyaml",
+    "regex",
+    "setuptools<81",
+    "wheel",
+    "yapf",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+pai-deps = { path = "../..", editable = true }

@@ -33,6 +33,12 @@ exit_code=0
 docker_run_args=()
 system_packages="$(uv run --frozen --no-dev pai-deps-package-info system-packages "${package_name}")"
 docker_run_args+=("--build-arg" "PAI_DEPS_SYSTEM_PACKAGES=${system_packages}")
+if [[ -n "${PAI_DEPS_DOCKER_BASE_IMAGE:-}" ]]; then
+	docker_run_args+=("--build-arg" "BASE_IMAGE=${PAI_DEPS_DOCKER_BASE_IMAGE}")
+fi
+if [[ -n "${PAI_DEPS_DOCKER_INSTALL_FFMPEG:-}" ]]; then
+	docker_run_args+=("--build-arg" "PAI_DEPS_INSTALL_FFMPEG=${PAI_DEPS_DOCKER_INSTALL_FFMPEG}")
+fi
 
 if [[ "${build_dir}" = /* ]]; then
 	mkdir -p "${build_dir}"

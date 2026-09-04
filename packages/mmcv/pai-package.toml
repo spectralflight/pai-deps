@@ -1,0 +1,30 @@
+schema_version = 1
+name = "mmcv"
+project_name = "mmcv"
+status = "smoke"
+upstream = "https://github.com/open-mmlab/mmcv"
+gpu_risk = "high"
+docs = "agents/build-notes.md"
+
+[license]
+expression = "Apache-2.0"
+files = ["LICENSE"]
+confidence = "high"
+
+[build]
+backend = "pip-wheel-git"
+script = "build.sh"
+requires_torch = true
+preinstalled_torch = true
+system_packages = ["build-essential"]
+
+[build.source]
+url = "https://github.com/open-mmlab/mmcv.git"
+revision = "{package_version}"
+
+[build.revision_overrides]
+"2.0.1" = "fc038a386a42d1f36d9ec49169d5817a52c70b8e"
+
+[build.env]
+exports = ["FORCE_CUDA", "MAX_JOBS", "MMCV_WITH_OPS"]
+defaults = { FORCE_CUDA = "1", MAX_JOBS = "8", MMCV_WITH_OPS = "1" }

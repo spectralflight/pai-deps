@@ -67,6 +67,27 @@ def test_docker_build_package_prepares_system_packages_and_mounts_absolute_outpu
     ]
 
 
+def test_docker_build_package_passes_exact_base_image(tmp_path: Path) -> None:
+    script = _copy_wrapper_with_fake_docker_run(tmp_path)
+    args_path = tmp_path / "docker-run-args.txt"
+    env = _test_env(args_path, status=0)
+    env["PAI_DEPS_DOCKER_BASE_IMAGE"] = "nvcr.io/nvidia/pytorch:26.06-py3@sha256:abc"
+    env["PAI_DEPS_DOCKER_INSTALL_FFMPEG"] = "0"
+
+    result = subprocess.run(
+        [str(script), "cosmos-dummy", "0.1.0", "3.12", "2.13", "build"],
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    arguments = args_path.read_text().splitlines()
+    assert arguments[arguments.index("BASE_IMAGE=nvcr.io/nvidia/pytorch:26.06-py3@sha256:abc") - 1] == "--build-arg"
+    assert arguments[arguments.index("PAI_DEPS_INSTALL_FFMPEG=0") - 1] == "--build-arg"
+
+
 def _copy_wrapper_with_fake_docker_run(tmp_path: Path) -> Path:
     scripts_dir = tmp_path / "just" / "build" / "scripts"
     scripts_dir.mkdir(parents=True)

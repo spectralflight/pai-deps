@@ -31,6 +31,14 @@ requires_torch=1
 if grep -Eq '^[[:space:]]*requires_torch[[:space:]]*=[[:space:]]*false' "${package_dir}/pai-package.toml"; then
 	requires_torch=0
 fi
+preinstalled_torch=0
+if grep -Eq '^[[:space:]]*preinstalled_torch[[:space:]]*=[[:space:]]*true' "${package_dir}/pai-package.toml"; then
+	preinstalled_torch=1
+fi
+if [[ "${requires_torch}" == "0" && "${preinstalled_torch}" == "1" ]]; then
+	echo "Error: preinstalled_torch requires requires_torch = true." >&2
+	exit 1
+fi
 
 _print_build_environment() {
 	local name
@@ -80,19 +88,40 @@ export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
 nvcc --version
 
 # Install build dependencies
-uv python install "${PYTHON_VERSION}"
 pushd "${package_dir}"
 venv_dir="$(uv cache dir)/pai-deps/${OUTPUT_NAME}"
-uv venv --python "${PYTHON_VERSION}" "${venv_dir}"
+if [[ "${preinstalled_torch}" == "1" ]]; then
+	system_python="$(command -v python3)"
+	if [[ "$("${system_python}" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')" != "${PYTHON_VERSION}" ]]; then
+		echo "Error: preinstalled Python does not match requested ${PYTHON_VERSION}." >&2
+		exit 1
+	fi
+	venv_args=(--python "${system_python}" --system-site-packages)
+else
+	uv python install "${PYTHON_VERSION}"
+	venv_args=(--python "${PYTHON_VERSION}")
+fi
+uv venv "${venv_args[@]}" "${venv_dir}"
 # shellcheck source=/dev/null
 source "${venv_dir}/bin/activate"
 uv sync --active
 
 if [[ "${requires_torch}" == "1" ]]; then
-	uv pip install "torch==${TORCH_VERSION}.*" --index-url "https://download.pytorch.org/whl/cu${CUDA_NAME}"
+	if [[ "${preinstalled_torch}" == "1" ]]; then
+		python -c '
+import torch
+import os
+expected = os.environ["TORCH_VERSION"] + "."
+if not torch.__version__.startswith(expected):
+    raise SystemExit(f"preinstalled torch {torch.__version__!r} does not match {expected!r}")
+print(f"Using preinstalled torch={torch.__version__} cuda={torch.version.cuda}")
+'
+	else
+		uv pip install "torch==${TORCH_VERSION}.*" --index-url "https://download.pytorch.org/whl/cu${CUDA_NAME}"
+	fi
 
 	# Set Torch-derived build environment variables.
-	eval "$(python -c "
+	eval "$(PYTHONPATH="${root_dir}" python -c "
 from pai_deps.build import build_env
 build_env()
 ")"

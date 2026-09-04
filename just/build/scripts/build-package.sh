@@ -34,6 +34,14 @@ shift
 export BUILD_DIR="${1}"
 shift
 
+detected_cuda_version=""
+if command -v nvcc >/dev/null 2>&1; then
+	detected_cuda_version="$(nvcc --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p')"
+fi
+if [[ -n "${detected_cuda_version}" ]]; then
+	export CUDA_VERSION="${detected_cuda_version}"
+fi
+
 if [[ ! "${PYTHON_VERSION}" =~ ^[0-9]+\.[0-9]+$ ]]; then
 	echo "Error: Python version must be '<major>.<minor>'." >&2
 	exit 1
@@ -171,10 +179,18 @@ _load_env_file "${PAI_DEPS_BUILD_ENV_FILE:-}"
 _load_inline_env "${PAI_DEPS_BUILD_ENV:-}"
 
 _git_commit() {
+	if [[ -n "${PAI_DEPS_GIT_COMMIT:-}" ]]; then
+		printf "%s" "${PAI_DEPS_GIT_COMMIT}"
+		return
+	fi
 	git -c safe.directory=/app rev-parse HEAD 2>/dev/null || git rev-parse HEAD 2>/dev/null || printf "unknown"
 }
 
 _git_dirty() {
+	if [[ -n "${PAI_DEPS_GIT_DIRTY:-}" ]]; then
+		printf "%s" "${PAI_DEPS_GIT_DIRTY}"
+		return
+	fi
 	if git -c safe.directory=/app diff --quiet 2>/dev/null &&
 		git -c safe.directory=/app diff --cached --quiet 2>/dev/null; then
 		printf "false"
@@ -263,6 +279,8 @@ build_env_args=(
 	UV_PYTHON_CACHE_DIR="${UV_PYTHON_CACHE_DIR}"
 	UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT}"
 	CCACHE_DIR="${CCACHE_DIR}"
+	PAI_DEPS_GIT_COMMIT="${PAI_DEPS_GIT_COMMIT:-}"
+	PAI_DEPS_GIT_DIRTY="${PAI_DEPS_GIT_DIRTY:-}"
 )
 env -i "${build_env_args[@]}" "${build_env_extra_args[@]}" bash -euxo pipefail "${script_dir}/build-package-inner.sh" "$@" |& tee "${log_file}"
 _write_wheel_sidecars
