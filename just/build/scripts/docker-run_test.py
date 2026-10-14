@@ -63,6 +63,15 @@ def test_docker_run_rejects_root_host_identity(tmp_path: Path) -> None:
     assert not args_path.exists()
 
 
+def test_cpu_build_uses_ubuntu_without_nvidia_runtime(tmp_path: Path) -> None:
+    result, args_path = _invoke_with_fake_docker(tmp_path, raw_arguments=["--cuda-version", "cpu", "--", "true"])
+    assert result.returncode == 0, result.stderr
+    args = args_path.read_text().splitlines()
+    assert "--runtime=nvidia" not in args
+    assert "PAI_DEPS_DOCKER_CUDA_VERSION=cpu" in _environment(args)
+    assert "--build-arg=BASE_IMAGE=ubuntu:22.04" in (tmp_path / "docker-build-args.txt").read_text()
+
+
 def test_docker_run_treats_removed_raw_passthrough_as_container_command(tmp_path: Path) -> None:
     result, args_path = _invoke_with_fake_docker(
         tmp_path,
@@ -106,6 +115,7 @@ def _invoke_with_fake_docker(
             #!/usr/bin/env bash
             set -euo pipefail
             if [[ "$1" == "build" ]]; then
+                printf '%s\n' "$@" > "${FAKE_DOCKER_BUILD_ARGS}"
                 printf 'sha256:test-image\n'
                 exit 0
             fi
@@ -134,6 +144,7 @@ def _invoke_with_fake_docker(
 
     env = {
         "FAKE_DOCKER_ARGS": str(args_path),
+        "FAKE_DOCKER_BUILD_ARGS": str(tmp_path / "docker-build-args.txt"),
         "FAKE_GID": str(gid),
         "FAKE_UID": str(uid),
         "HOME": str(tmp_path / "home"),

@@ -19,6 +19,8 @@ import subprocess
 import textwrap
 from pathlib import Path
 
+import pytest
+
 ROOT_DIR = Path(__file__).resolve().parents[3]
 BUILD_SCRIPT = ROOT_DIR / "just" / "build" / "scripts" / "build-package.sh"
 
@@ -49,6 +51,7 @@ def _run_build_script(
     work_dir: Path,
     env_file: Path | None = None,
     inline_env: str | None = None,
+    cpu: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     build_script = _write_fake_build_script(work_dir)
     env = {
@@ -65,6 +68,9 @@ def _run_build_script(
         env["PAI_DEPS_BUILD_ENV_FILE"] = str(env_file)
     if inline_env is not None:
         env["PAI_DEPS_BUILD_ENV"] = inline_env
+    if cpu:
+        env.pop("CUDA_VERSION")
+        env["PAI_DEPS_DOCKER_CUDA_VERSION"] = "cpu"
     return subprocess.run(
         [
             str(build_script),
@@ -134,6 +140,16 @@ def test_build_script_writes_wheel_sidecars(tmp_path: Path) -> None:
     assert provenance["wheel"]["filename"] == wheel.name
 
 
+def test_cpu_build_propagates_mode_and_records_cpu_provenance(tmp_path: Path) -> None:
+    result = _run_build_script(tmp_path, cpu=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "PAI_DEPS_DOCKER_CUDA_VERSION=cpu\n" in _read_build_env(tmp_path)
+    output = next((tmp_path / "build").iterdir())
+    assert "-cpu-torch2.9" in output.name
+    provenance = json.loads(next(output.glob("*.build.json")).read_text())
+    assert provenance["cuda_version"] == "cpu"
+
+
 def test_build_script_loads_inline_build_env(tmp_path: Path) -> None:
     result = _run_build_script(
         tmp_path,
@@ -165,3 +181,60 @@ def test_build_script_rejects_reserved_inline_env_variables(tmp_path: Path) -> N
     assert result.returncode != 0
     assert "PACKAGE_NAME is controlled by just/build/scripts/build-package.sh" in result.stderr
     assert not (tmp_path / "build").exists()
+
+
+@pytest.mark.parametrize("build_exit", [0, 7])
+def test_cpu_inner_build_uses_locked_torch_and_cleans_venv(tmp_path: Path, build_exit: int) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    uv_log = tmp_path / "uv.log"
+    fake_uv = fake_bin / "uv"
+    fake_uv.write_text(
+        "#!/bin/bash\n"
+        'printf "%s\\n" "$*" >> "$UV_LOG"\n'
+        'if [[ "$1 $2" == "cache dir" ]]; then printf "%s\\n" "$UV_CACHE_DIR"; fi\n'
+        'if [[ "$1" == venv ]]; then\n'
+        '  mkdir -p "${@: -1}/bin"\n'
+        '  printf "deactivate() { :; }\\n" > "${@: -1}/bin/activate"\n'
+        "fi\n"
+    )
+    fake_uv.chmod(0o755)
+    for name in ("python", "ccache"):
+        executable = fake_bin / name
+        executable.write_text("#!/bin/bash\nexit 0\n")
+        executable.chmod(0o755)
+    fake_pip = fake_bin / "pip"
+    fake_pip.write_text('#!/bin/bash\n[[ "$ENABLE_CUDA" == 0 ]] || exit 9\nexit "$BUILD_EXIT"\n')
+    fake_pip.chmod(0o755)
+    package_dir = tmp_path / "packages" / "torchcodec"
+    package_dir.mkdir(parents=True)
+    (package_dir / "pai-package.toml").write_text("")
+    (package_dir / "build.sh").write_text((ROOT_DIR / "packages/torchcodec/build.sh").read_text())
+    env = {
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "PACKAGE_NAME": "torchcodec",
+        "PACKAGE_VERSION": "0.10.0",
+        "TORCH_VERSION": "2.10",
+        "PYTHON_VERSION": "3.12",
+        "PAI_DEPS_DOCKER_CUDA_VERSION": "cpu",
+        "OUTPUT_NAME": "test-cpu",
+        "OUTPUT_DIR": str(tmp_path / "output"),
+        "UV_CACHE_DIR": str(tmp_path / "cache"),
+        "UV_LOG": str(uv_log),
+        "BUILD_EXIT": str(build_exit),
+    }
+    result = subprocess.run(
+        ["bash", "-euo", "pipefail", str(BUILD_SCRIPT.with_name("build-package-inner.sh"))],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == build_exit, result.stdout + result.stderr
+    commands = uv_log.read_text()
+    assert "sync --active --locked --group cpu" in commands
+    assert "pip install" not in commands
+    assert not (tmp_path / "cache/pai-deps/test-cpu").exists()
+    if build_exit == 0:
+        assert "--local-version=cpu.torch210" in commands

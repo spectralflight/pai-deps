@@ -10,6 +10,7 @@ Usage: just/build/scripts/docker-build-package.sh PACKAGE VERSION PYTHON_VERSION
 
 Run a package build inside Docker. Set PAI_DEPS_BUILD_ATTEMPTS to retry
 transient network failures while reusing Docker and uv caches.
+Set PAI_DEPS_DOCKER_CUDA_VERSION=cpu for packages with a locked cpu build group.
 EOF
 }
 

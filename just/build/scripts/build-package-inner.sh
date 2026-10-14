@@ -22,7 +22,10 @@ export PAI_DEPS_REPO_ROOT="${root_dir}"
 # shellcheck source=just/build/scripts/build-helpers.sh
 source "${script_dir}/build-helpers.sh"
 
-CUDA_VERSION=$(nvcc --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p')
+CUDA_VERSION=cpu
+if [[ "${PAI_DEPS_DOCKER_CUDA_VERSION:-}" != "cpu" ]]; then
+	CUDA_VERSION=$(nvcc --version | sed -n 's/^.*release \([0-9]\+\.[0-9]\+\).*$/\1/p')
+fi
 CUDA_NAME="${CUDA_VERSION//./}"
 TORCH_NAME="${TORCH_VERSION//./}"
 
@@ -69,15 +72,17 @@ gcc --version
 _print_build_environment
 
 # Set CUDA environment variables
-export CUDA_HOME="/usr/local/cuda"
-# Check if CUDA_HOME is valid.
-if [ ! -d "${CUDA_HOME}/bin" ]; then
-	echo "CUDA ${CUDA_VERSION} is not installed."
-	exit 1
+if [[ "${CUDA_VERSION}" != "cpu" ]]; then
+	export CUDA_HOME="/usr/local/cuda"
+	# Check if CUDA_HOME is valid.
+	if [ ! -d "${CUDA_HOME}/bin" ]; then
+		echo "CUDA ${CUDA_VERSION} is not installed."
+		exit 1
+	fi
+	export PATH="${CUDA_HOME}/bin:${PATH:-}"
+	export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
+	nvcc --version
 fi
-export PATH="${CUDA_HOME}/bin:${PATH:-}"
-export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
-nvcc --version
 
 # Install build dependencies
 uv python install "${PYTHON_VERSION}"
@@ -86,10 +91,20 @@ venv_dir="$(uv cache dir)/pai-deps/${OUTPUT_NAME}"
 uv venv --python "${PYTHON_VERSION}" "${venv_dir}"
 # shellcheck source=/dev/null
 source "${venv_dir}/bin/activate"
-uv sync --active
+trap 'rm -rf "${venv_dir}"' EXIT
+if [[ "${CUDA_VERSION}" == "cpu" ]]; then
+	# Each CPU-capable package owns its pinned Torch build dependency.
+	uv sync --active --locked --group cpu
+else
+	uv sync --active --locked
+fi
 
 if [[ "${requires_torch}" == "1" ]]; then
-	uv pip install "torch==${TORCH_VERSION}.*" --index-url "https://download.pytorch.org/whl/cu${CUDA_NAME}"
+	if [[ "${CUDA_VERSION}" == "cpu" ]]; then
+		python -c 'import sys, torch; assert torch.__version__.startswith(sys.argv[1] + ".") and torch.version.cuda is None, torch.__version__' "${TORCH_VERSION}"
+	else
+		uv pip install "torch==${TORCH_VERSION}.*" --index-url "https://download.pytorch.org/whl/cu${CUDA_NAME}"
+	fi
 
 	# Set Torch-derived build environment variables.
 	eval "$(python -c "
@@ -117,4 +132,7 @@ ccache --show-stats
 # Optionally append a build-variant suffix to the local version (e.g. LOCAL_VERSION_SUFFIX=gb300
 # -> '...+cu130.torch210.gb300') to distinguish a custom build from the upstream wheel.
 LOCAL_VERSION="cu${CUDA_NAME}.torch${TORCH_NAME}${LOCAL_VERSION_SUFFIX:+.${LOCAL_VERSION_SUFFIX}}"
+if [[ "${CUDA_VERSION}" == "cpu" ]]; then
+	LOCAL_VERSION="cpu.torch${TORCH_NAME}${LOCAL_VERSION_SUFFIX:+.${LOCAL_VERSION_SUFFIX}}"
+fi
 uv run --frozen --no-dev pai-deps-fix-wheel -i "${OUTPUT_DIR}"/*.whl --version="${PACKAGE_VERSION}" --local-version="${LOCAL_VERSION}"

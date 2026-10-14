@@ -8,7 +8,7 @@ scripts := build_dir + "/scripts"
 default:
     @just --justfile "{{ source_file() }}" --list
 
-# Build a package inside Docker without an interactive TTY.
+# Build a package inside Docker; PAI_DEPS_DOCKER_CUDA_VERSION=cpu selects CPU.
 package package_name package_version python_version torch_version output_dir='tmp/build':
     cd "{{ repo }}" && mise exec -- "{{ scripts }}/docker-build-package.sh" {{ quote(package_name) }} {{ quote(package_version) }} {{ quote(python_version) }} {{ quote(torch_version) }} {{ quote(output_dir) }}
 

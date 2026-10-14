@@ -34,9 +34,11 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
+        build-essential \
         ccache \
         curl \
         gosu \
+        gpg-agent \
         software-properties-common \
         git-lfs \
         tree \

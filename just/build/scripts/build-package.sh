@@ -74,6 +74,7 @@ _is_reserved_env_name() {
 		CUDA_HOME
 		LD_LIBRARY_PATH
 		CUDA_VERSION
+		PAI_DEPS_DOCKER_CUDA_VERSION
 	)
 	for reserved_name in "${reserved_env_names[@]}"; do
 		if [[ "${name}" == "${reserved_name}" ]]; then
@@ -229,7 +230,12 @@ _write_wheel_sidecars() {
 }
 
 timestamp=$(date +%Y%m%d%H%M%S)
-export OUTPUT_NAME="${timestamp}-${PACKAGE_NAME//-/_}-${PACKAGE_VERSION}-py${PYTHON_VERSION}-cu${CUDA_VERSION}-torch${TORCH_VERSION}"
+accelerator="cu${CUDA_VERSION:-}"
+if [[ "${PAI_DEPS_DOCKER_CUDA_VERSION:-}" == "cpu" ]]; then
+	CUDA_VERSION=cpu
+	accelerator=cpu
+fi
+export OUTPUT_NAME="${timestamp}-${PACKAGE_NAME//-/_}-${PACKAGE_VERSION}-py${PYTHON_VERSION}-${accelerator}-torch${TORCH_VERSION}"
 OUTPUT_DIR="${BUILD_DIR}/${OUTPUT_NAME}"
 rm -rf "${OUTPUT_DIR}"
 mkdir -p "${OUTPUT_DIR}"
@@ -263,6 +269,7 @@ build_env_args=(
 	UV_PYTHON_CACHE_DIR="${UV_PYTHON_CACHE_DIR}"
 	UV_PROJECT_ENVIRONMENT="${UV_PROJECT_ENVIRONMENT}"
 	CCACHE_DIR="${CCACHE_DIR}"
+	PAI_DEPS_DOCKER_CUDA_VERSION="${PAI_DEPS_DOCKER_CUDA_VERSION:-}"
 )
 env -i "${build_env_args[@]}" "${build_env_extra_args[@]}" bash -euxo pipefail "${script_dir}/build-package-inner.sh" "$@" |& tee "${log_file}"
 _write_wheel_sidecars

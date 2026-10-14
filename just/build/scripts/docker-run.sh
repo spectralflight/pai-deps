@@ -8,10 +8,10 @@ usage() {
 	cat >&2 <<'EOF'
 Usage: just/build/scripts/docker-run.sh [OPTIONS] [-- COMMAND...]
 
-Build the CUDA Docker image and run it with the repository mounted at /app.
+Build the Docker image and run it with the repository mounted at /app.
 
 Options:
-  --cuda-version VERSION   CUDA image version to build, default: 12.8.1
+  --cuda-version VERSION   CUDA image version or cpu, default: 12.8.1
   --no-tty                Do not allocate an interactive TTY
   --tty                   Force an interactive TTY
   --build-arg ARG         Extra docker build argument, e.g. FOO=bar
@@ -127,12 +127,18 @@ cache_args=(
 	-v "${ccache_dir}:/cache/ccache"
 )
 
+runtime_args=(--runtime=nvidia)
+if [[ "${cuda_version}" == "cpu" ]]; then
+	build_args+=(--build-arg=BASE_IMAGE=ubuntu:22.04)
+	runtime_args=()
+fi
 image_tag="$(docker build --build-arg="CUDA_VERSION=${cuda_version}" "${build_args[@]}" -q "${repo_root}")"
 
 docker run \
 	"${tty_args[@]}" \
 	--rm \
-	--runtime=nvidia \
+	"${runtime_args[@]}" \
+	-e PAI_DEPS_DOCKER_CUDA_VERSION="${cuda_version}" \
 	-e PAI_DEPS_BUILD_UID="${host_uid}" \
 	-e PAI_DEPS_BUILD_GID="${host_gid}" \
 	-e PAI_DEPS_BUILD_HOME="/home/paideps" \
