@@ -1,0 +1,7 @@
+[project]
+name = "vllm-omni"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["pai-deps[build]", "setuptools==80.10.2", "setuptools-scm==10.2.1"]
+[tool.uv.sources]
+pai-deps = { path = "../..", editable = true }
