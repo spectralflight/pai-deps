@@ -11,7 +11,7 @@ PyPI 1.2.0 source does not include this pipeline. No internal source is used.
 ## Local Build Entry Point
 
 ```bash
-PAI_DEPS_BUILD_ENV='MAX_JOBS=2 TORCH_CUDA_ARCH_LIST=9.0;12.0' \
+PAI_DEPS_BUILD_ENV='MAX_JOBS=2 UV_CONSTRAINT=/app/packages/nvidia-vipe/torch-constraints.txt' \
   just build package nvidia-vipe 1.2.0.post20260710 3.12 2.9
 ```
 
@@ -28,7 +28,9 @@ The package descriptor is `pai-package.toml`; compilation is in `build.sh`.
 The fork identifies itself as 1.2.0. The packaging version
 `1.2.0.post20260710` distinguishes this pinned fork from the PyPI source.
 The builder appends the CUDA and torch compatibility suffix. Initial target:
-CPython 3.12, torch 2.9, CUDA 12.8, Linux x86_64.
+CPython 3.12, torch 2.9.0, CUDA 12.8, Linux x86_64. The builder accepts a
+major/minor torch selector; the supported uv constraints input pins its patch
+version without changing the shared build command.
 
 ## Build Environment
 
@@ -40,8 +42,8 @@ Python dependencies, model checkpoints and a compatible NVIDIA driver.
 
 ## OOM Controls
 
-`MAX_JOBS` defaults to two. Initial architecture targets are Hopper 9.0 and
-Blackwell 12.0. Reduce the architecture list before widening concurrency.
+`MAX_JOBS` defaults to two. Leave `TORCH_CUDA_ARCH_LIST` unset so the shared
+builder selects every architecture supported by the selected PyTorch build.
 
 ## Smoke Test
 
