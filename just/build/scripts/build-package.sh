@@ -59,6 +59,8 @@ _is_reserved_env_name() {
 		PYTHON_VERSION
 		TORCH_VERSION
 		LOCAL_VERSION_SUFFIX
+		PAI_DEPS_SOURCE_GIT_COMMIT
+		PAI_DEPS_SOURCE_GIT_DIRTY
 		OUTPUT_NAME
 		OUTPUT_DIR
 		PATH
@@ -171,10 +173,18 @@ _load_env_file "${PAI_DEPS_BUILD_ENV_FILE:-}"
 _load_inline_env "${PAI_DEPS_BUILD_ENV:-}"
 
 _git_commit() {
+	if [[ -n "${PAI_DEPS_SOURCE_GIT_COMMIT:-}" ]]; then
+		printf "%s" "${PAI_DEPS_SOURCE_GIT_COMMIT}"
+		return
+	fi
 	git -c safe.directory=/app rev-parse HEAD 2>/dev/null || git rev-parse HEAD 2>/dev/null || printf "unknown"
 }
 
 _git_dirty() {
+	if [[ -n "${PAI_DEPS_SOURCE_GIT_DIRTY:-}" ]]; then
+		printf "%s" "${PAI_DEPS_SOURCE_GIT_DIRTY}"
+		return
+	fi
 	if git -c safe.directory=/app diff --quiet 2>/dev/null &&
 		git -c safe.directory=/app diff --cached --quiet 2>/dev/null; then
 		printf "false"

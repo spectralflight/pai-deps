@@ -37,7 +37,8 @@ version without changing the shared build command.
 Uses the shared Docker builder, setuptools>=77, wheel, ninja, CUDA torch and
 nvcc. The single `vipe_ext` extension includes bundled LieTorch sources.
 `USE_SYSTEM_EIGEN=1` uses the builder's `libeigen3-dev` instead of downloading
-headers during compilation. Runtime installation needs the wheel's declared
+headers during compilation. The recipe adds the upstream third-party notice file
+to wheel license metadata; scientific source is unchanged. Runtime installation needs the wheel's declared
 Python dependencies, model checkpoints and a compatible NVIDIA driver.
 
 ## OOM Controls

@@ -127,6 +127,14 @@ cache_args=(
 	-v "${ccache_dir}:/cache/ccache"
 )
 
+# A linked worktree's Git metadata is outside the mounted source directory.
+# Capture provenance on the host instead of exposing that metadata to build code.
+source_git_commit="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || printf unknown)"
+source_git_dirty=true
+if source_status="$(git -C "${repo_root}" status --porcelain --untracked-files=normal 2>/dev/null)" && [[ -z "${source_status}" ]]; then
+	source_git_dirty=false
+fi
+
 image_tag="$(docker build --build-arg="CUDA_VERSION=${cuda_version}" "${build_args[@]}" -q "${repo_root}")"
 
 docker run \
@@ -140,6 +148,8 @@ docker run \
 	-e UV_PYTHON_CACHE_DIR="/cache/uv-python" \
 	-e CCACHE_DIR="/cache/ccache" \
 	-e PAI_DEPS_DOCKER_IMAGE="${image_tag}" \
+	-e PAI_DEPS_SOURCE_GIT_COMMIT="${source_git_commit}" \
+	-e PAI_DEPS_SOURCE_GIT_DIRTY="${source_git_dirty}" \
 	-e PAI_DEPS_BUILD_ENV_FILE="${env_file}" \
 	-e PAI_DEPS_BUILD_ENV="${PAI_DEPS_BUILD_ENV:-}" \
 	-v "${repo_root}:/app" \
