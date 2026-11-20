@@ -117,7 +117,7 @@ if not torch.__version__.startswith(expected):
 print(f"Using preinstalled torch={torch.__version__} cuda={torch.version.cuda}")
 '
 	else
-		uv pip install "torch==${TORCH_VERSION}.*" --index-url "https://download.pytorch.org/whl/cu${CUDA_NAME}"
+		uv pip install "torch==${PAI_DEPS_TORCH_PIN:-${TORCH_VERSION}.*}" --index-url "${PAI_DEPS_TORCH_INDEX:-https://download.pytorch.org/whl/cu${CUDA_NAME}}"
 	fi
 
 	# Set Torch-derived build environment variables.

@@ -9,5 +9,5 @@ export SAM2_BUILD_CUDA="${SAM2_BUILD_CUDA:-1}"
 export SAM2_BUILD_ALLOW_ERRORS="${SAM2_BUILD_ALLOW_ERRORS:-0}"
 
 pai_deps_pip_wheel \
-	"git+https://github.com/facebookresearch/sam2.git@${SAM2_GIT_REF}" \
+	"${SAM2_BUILD_SOURCE:-git+https://github.com/facebookresearch/sam2.git@${SAM2_GIT_REF}}" \
 	"$@"
