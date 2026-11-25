@@ -190,11 +190,12 @@ def test_build_script_rejects_reserved_env_file_variables(tmp_path: Path) -> Non
     assert not (tmp_path / "build").exists()
 
 
-def test_build_script_rejects_reserved_inline_env_variables(tmp_path: Path) -> None:
-    result = _run_build_script(tmp_path, inline_env="PACKAGE_NAME=other")
+@pytest.mark.parametrize("name", ["PACKAGE_NAME", "PAI_DEPS_GIT_COMMIT", "PAI_DEPS_GIT_DIRTY"])
+def test_build_script_rejects_reserved_inline_env_variables(tmp_path: Path, name: str) -> None:
+    result = _run_build_script(tmp_path, inline_env=f"{name}=other")
 
     assert result.returncode != 0
-    assert "PACKAGE_NAME is controlled by just/build/scripts/build-package.sh" in result.stderr
+    assert f"{name} is controlled by just/build/scripts/build-package.sh" in result.stderr
     assert not (tmp_path / "build").exists()
 
 
@@ -253,3 +254,73 @@ def test_cpu_inner_build_uses_locked_torch_and_cleans_venv(tmp_path: Path, build
     assert not (tmp_path / "cache/pai-deps/test-cpu").exists()
     if build_exit == 0:
         assert "--local-version=cpu.torch210" in commands
+
+
+@pytest.mark.parametrize("preinstalled", [False, True])
+def test_cuda_inner_build_preserves_torch_selection(tmp_path: Path, preinstalled: bool) -> None:
+    """CPU support must retain both managed and image-provided CUDA Torch."""
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    command_log = tmp_path / "commands.log"
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    inner = scripts / "build-package-inner.sh"
+    inner.write_text(
+        BUILD_SCRIPT.with_name("build-package-inner.sh").read_text().replace("/usr/local/cuda", str(tmp_path))
+    )
+    (scripts / "build-helpers.sh").write_text(BUILD_SCRIPT.with_name("build-helpers.sh").read_text())
+    commands = {
+        "uv": (
+            'printf "uv %s\\n" "$*" >> "$COMMAND_LOG"\n'
+            'if [[ "$1 $2" == "cache dir" ]]; then printf "%s\\n" "$UV_CACHE_DIR"; fi\n'
+            'if [[ "$1" == venv ]]; then\n'
+            ' mkdir -p "${@: -1}/bin"\n'
+            ' printf "deactivate() { :; }\\n" > "${@: -1}/bin/activate"\n'
+            "fi\n"
+        ),
+        "nvcc": 'printf "release 13.0, V13.0\\n"\n',
+        "python3": 'printf "3.12\\n"\n',
+        "python": 'printf "python %s\\n" "$*" >> "$COMMAND_LOG"\n',
+        "ccache": "exit 0\n",
+    }
+    for name, body in commands.items():
+        executable = fake_bin / name
+        executable.write_text("#!/bin/bash\n" + body)
+        executable.chmod(0o755)
+    package_dir = tmp_path / "packages" / "sample"
+    package_dir.mkdir(parents=True)
+    (package_dir / "pai-package.toml").write_text(f"preinstalled_torch = {str(preinstalled).lower()}\n")
+    (package_dir / "build.sh").write_text(":\n")
+    environment = {
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "PACKAGE_NAME": "sample",
+        "PACKAGE_VERSION": "1.0",
+        "TORCH_VERSION": "2.13",
+        "PYTHON_VERSION": "3.12",
+        "OUTPUT_NAME": "test-cuda",
+        "OUTPUT_DIR": str(tmp_path / "output"),
+        "UV_CACHE_DIR": str(tmp_path / "cache"),
+        "COMMAND_LOG": str(command_log),
+    }
+    result = subprocess.run(
+        ["bash", "-euo", "pipefail", str(inner)],
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    recorded = command_log.read_text()
+    assert "uv sync --active --locked" in recorded
+    assert "--group cpu" not in recorded
+    assert "from pai_deps.build import build_env" in recorded
+    if preinstalled:
+        assert "--system-site-packages" in recorded
+        assert "Using preinstalled torch=" in recorded
+        assert "uv pip install" not in recorded
+        assert "uv python install" not in recorded
+    else:
+        assert "uv python install 3.12" in recorded
+        assert "uv pip install torch==2.13.* --index-url https://download.pytorch.org/whl/cu130" in recorded
+    assert not (tmp_path / "cache/pai-deps/test-cuda").exists()

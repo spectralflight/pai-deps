@@ -33,14 +33,14 @@ def test_docker_run_selectively_mounts_user_build_caches(tmp_path: Path) -> None
     assert "--rm" in args
 
 
-@pytest.mark.parametrize("dirty", [False, True])
-def test_docker_run_captures_source_provenance_without_mounting_git(tmp_path: Path, dirty: bool) -> None:
-    result, args_path = _invoke_with_fake_docker(tmp_path, source_dirty=dirty)
+@pytest.mark.parametrize("status", ["clean", "tracked", "untracked", "error"])
+def test_docker_run_captures_source_provenance_without_mounting_git(tmp_path: Path, status: str) -> None:
+    result, args_path = _invoke_with_fake_docker(tmp_path, source_status=status)
     assert result.returncode == 0, result.stdout + result.stderr
     args = args_path.read_text().splitlines()
     assert _environment(args) >= {
         "PAI_DEPS_GIT_COMMIT=" + "a" * 40,
-        f"PAI_DEPS_GIT_DIRTY={str(dirty).lower()}",
+        f"PAI_DEPS_GIT_DIRTY={str(status != 'clean').lower()}",
     }
     assert not any(".git" in mount for mount in _mounts(args))
 
@@ -120,7 +120,7 @@ def _invoke_with_fake_docker(
     uid: int = 1234,
     gid: int = 1234,
     raw_arguments: list[str] | None = None,
-    source_dirty: bool = False,
+    source_status: str = "clean",
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -164,7 +164,12 @@ def _invoke_with_fake_docker(
         "#!/usr/bin/env bash\n"
         'case "$*" in\n'
         '  *"rev-parse HEAD"*) printf "%s\\n" "${FAKE_SOURCE_COMMIT}" ;;\n'
-        '  *"status --porcelain"*) [ "$FAKE_SOURCE_DIRTY" = false ] || printf " M changed.py\\n" ;;\n'
+        '  *"status --porcelain"*)\n'
+        '    case "$FAKE_SOURCE_STATUS" in\n'
+        '      tracked) printf " M changed.py\\n" ;;\n'
+        '      untracked) printf "?? new.py\\n" ;;\n'
+        "      error) exit 1 ;;\n"
+        "    esac ;;\n"
         "  *) exit 2 ;;\n"
         "esac\n"
     )
@@ -173,7 +178,7 @@ def _invoke_with_fake_docker(
     env = {
         "FAKE_DOCKER_ARGS": str(args_path),
         "FAKE_SOURCE_COMMIT": "a" * 40,
-        "FAKE_SOURCE_DIRTY": str(source_dirty).lower(),
+        "FAKE_SOURCE_STATUS": source_status,
         "FAKE_DOCKER_BUILD_ARGS": str(tmp_path / "docker-build-args.txt"),
         "FAKE_GID": str(gid),
         "FAKE_UID": str(uid),
