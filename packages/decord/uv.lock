@@ -53,6 +53,9 @@ dependencies = [
 [package.metadata]
 requires-dist = [{ name = "pai-deps", extras = ["build"], editable = "../../" }]
 
+[package.metadata.requires-dev]
+cpu = []
+
 [[package]]
 name = "docstring-parser"
 version = "0.18.0"
