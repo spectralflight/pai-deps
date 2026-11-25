@@ -31,8 +31,15 @@ def _parse_torch_cuda_arch(name: str) -> tuple[int, int]:
 
 def _get_torch_cuda_arch_list() -> list[tuple[int, int]]:
     """Get the list of CUDA architectures supported by PyTorch."""
+    targets = torch.cuda.get_arch_list()
+    if not targets and torch.version.cuda is not None:
+        # get_arch_list() hides the compiled targets when driver initialization
+        # fails. Cross-compilation needs the wheel's targets, not a working GPU.
+        targets = (torch._C._cuda_getArchFlags() or "").split()
+        if not targets:
+            raise RuntimeError("CUDA Torch does not report compiled architecture targets")
     arch_list = []
-    for arch in torch.cuda.get_arch_list():
+    for arch in targets:
         if not arch.startswith("sm_"):
             continue
         ver = _parse_torch_cuda_arch(arch)
