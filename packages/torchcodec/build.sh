@@ -20,6 +20,9 @@ pybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())")
 export pybind11_DIR
 export I_CONFIRM_THIS_IS_NOT_A_LICENSE_VIOLATION=1
 export ENABLE_CUDA=1
+if [[ "${CUDA_VERSION}" == "cpu" ]]; then
+	export ENABLE_CUDA=0
+fi
 
 pai_deps_pip_wheel \
 	"git+https://github.com/meta-pytorch/torchcodec.git@${PACKAGE_REVISION}" \

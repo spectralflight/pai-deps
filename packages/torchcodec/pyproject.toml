@@ -15,7 +15,7 @@
 
 [project]
 name = "torchcodec"
-version = "0.9.1"
+version = "0.10.0"
 requires-python = ">=3.10"
 dependencies = [
     "pai-deps[build]",
@@ -27,5 +27,14 @@ dependencies = [
     "ninja",
 ]
 
+[dependency-groups]
+cpu = ["torch==2.10.0+cpu"]
+
 [tool.uv.sources]
+torch = { index = "pytorch-cpu" }
 pai-deps = { path = "../..", editable = true }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
