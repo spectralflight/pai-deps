@@ -1,0 +1,15 @@
+schema_version = 1
+name = "vllm-omni"
+project_name = "vllm-omni"
+status = "smoke"
+upstream = "https://github.com/vllm-project/vllm-omni"
+gpu_risk = "none"
+[license]
+expression = "Apache-2.0"
+confidence = "high"
+files = ["LICENSE"]
+[build]
+backend = "uv-build"
+script = "build.sh"
+local = true
+requires_torch = false
