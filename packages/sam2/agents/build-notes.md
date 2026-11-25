@@ -23,20 +23,18 @@ checkpoints external.
 
 ## Version Constraints
 
-Local package environment requires Python `>=3.10`. The build script wheels a
-pinned upstream git revision by default rather than deriving the revision from
-`PACKAGE_VERSION`; change `SAM2_GIT_REF` explicitly when testing a new upstream
-commit.
+The public scorer uses the official PyPI 1.1.0 source archive, pinned by SHA256
+in `build.sh`. Other source versions fail explicitly. The shared builder selects
+the latest patch within the requested Torch major/minor and derives CUDA targets
+from that Torch installation; do not override the architecture list.
 
 ## Build Environment
 
 Important variables:
 
-- `SAM2_GIT_REF`: upstream commit to wheel.
 - `SAM2_BUILD_CUDA`: set `1` for TransferBench CUDA wheels.
 - `SAM2_BUILD_ALLOW_ERRORS`: keep `0` for real builds.
 - `CUDA_HOME`: expected by upstream CUDA extension discovery.
-- `TORCH_CUDA_ARCH_LIST`: use a narrow value for local smoke builds.
 - `MAX_JOBS`: PyTorch extension parallelism throttle.
 
 ## OOM Controls
@@ -44,7 +42,6 @@ Important variables:
 Start with:
 
 ```dotenv
-TORCH_CUDA_ARCH_LIST=12.0
 MAX_JOBS=4
 SAM2_BUILD_CUDA=1
 SAM2_BUILD_ALLOW_ERRORS=0

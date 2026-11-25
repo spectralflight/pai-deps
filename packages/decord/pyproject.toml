@@ -23,3 +23,6 @@ dependencies = [
 
 [tool.uv.sources]
 pai-deps = { path = "../..", editable = true }
+
+[dependency-groups]
+cpu = []

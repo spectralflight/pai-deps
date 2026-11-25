@@ -75,12 +75,19 @@ EOF
 	return 1
 }
 
-if [[ ! -f "${interface_dir}/nvcuvid.h" || ! -f "${interface_dir}/cuviddec.h" || ! -f "${interface_dir}/nvEncodeAPI.h" ]]; then
-	echo "Error: DECORD_VIDEO_CODEC_INTERFACE_DIR must contain the NVIDIA Video Codec interface headers: ${interface_dir}" >&2
+use_cuda="${DECORD_USE_CUDA:-ON}"
+case "$use_cuda" in ON | OFF) ;; *)
+	echo "DECORD_USE_CUDA must be ON or OFF" >&2
 	exit 1
+	;;
+esac
+if [[ "$use_cuda" == ON ]]; then
+	if [[ ! -f "${interface_dir}/nvcuvid.h" || ! -f "${interface_dir}/cuviddec.h" || ! -f "${interface_dir}/nvEncodeAPI.h" ]]; then
+		echo "Missing NVIDIA Video Codec interface headers" >&2
+		exit 1
+	fi
+	video_codec_lib_dir="$(_find_video_codec_lib_dir)"
 fi
-
-video_codec_lib_dir="$(_find_video_codec_lib_dir)"
 
 temp_dir="$(mktemp -d)"
 trap 'rm -rf "${temp_dir}"' EXIT
@@ -97,12 +104,13 @@ mkdir build
 cd build
 cmake_args=(
 	..
-	-DUSE_CUDA=ON
+	"-DUSE_CUDA=${use_cuda}"
 	-DCMAKE_BUILD_TYPE=Release
-	"-DCMAKE_CXX_FLAGS=-I${interface_dir}"
-	"-DCUDA_NVCUVID_LIBRARY=${video_codec_lib_dir}/libnvcuvid.so"
 )
-if [[ -n "${DECORD_CUDA_ARCHITECTURES:-}" ]]; then
+if [[ "$use_cuda" == ON ]]; then
+	cmake_args+=("-DCMAKE_CXX_FLAGS=-I${interface_dir}" "-DCUDA_NVCUVID_LIBRARY=${video_codec_lib_dir}/libnvcuvid.so")
+fi
+if [[ "$use_cuda" == ON && -n "${DECORD_CUDA_ARCHITECTURES:-}" ]]; then
 	cmake_args+=("-DCMAKE_CUDA_ARCHITECTURES=${DECORD_CUDA_ARCHITECTURES}")
 fi
 cmake "${cmake_args[@]}"

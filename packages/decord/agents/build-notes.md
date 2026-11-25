@@ -1,6 +1,6 @@
 # decord Build Notes
 
-Status: historical.
+Status: maintained.
 Research date: 2026-06-27.
 
 ## Status
@@ -28,6 +28,13 @@ Local package environment requires Python `>=3.10`. Upstream PyPI wheels are
 CPU-only; GPU/NVDEC support requires source builds with FFmpeg and CUDA/Video
 Codec SDK pieces. `pai-package.toml` sets `requires_torch = false`; the Torch
 version argument is retained only for this repo's wheel local-version naming.
+
+## CPU-only builds
+
+Set `PAI_DEPS_DOCKER_CUDA_VERSION=cpu` and `DECORD_USE_CUDA=OFF` for CPU/media
+wheels. This path skips NVIDIA Video Codec headers and link libraries. The
+package has an empty locked `cpu` group because it does not depend on Torch.
+Validate decoding with the synthetic CPU example below before publication.
 
 ## Build Environment
 

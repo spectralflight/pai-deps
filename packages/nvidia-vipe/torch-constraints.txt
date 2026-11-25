@@ -1,2 +1,2 @@
-# Match the qualified runtime while the builder selects the torch 2.9 series.
-torch==2.9.0
+# Keep the build in the selected Torch minor while accepting patch updates.
+torch>=2.9,<2.10
