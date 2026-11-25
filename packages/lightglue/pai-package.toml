@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema_version = 1
+name = "lightglue"
+project_name = "lightglue"
+status = "maintained"
+upstream = "https://github.com/cvg/LightGlue"
+gpu_risk = "none"
+
+[license]
+expression = "Apache-2.0"
+files = ["LICENSE"]
+confidence = "high"
+
+[build]
+backend = "pip-wheel-git"
+script = "build.sh"
+common_pip_flags = true
+requires_torch = false
+
+[build.source]
+url = "https://github.com/cvg/LightGlue.git"
+revision = "eb42fee2d71449efb0aa5c10549752b5d75384d8"
+
+[build.revision_overrides]
+"0.0.post20261116" = "eb42fee2d71449efb0aa5c10549752b5d75384d8"

@@ -127,10 +127,12 @@ cache_args=(
 	-v "${ccache_dir}:/cache/ccache"
 )
 
+# A linked worktree's Git metadata is outside the mounted source directory.
+# Capture provenance on the host instead of exposing that metadata to build code.
 git_commit="$(git -C "${repo_root}" rev-parse HEAD 2>/dev/null || printf unknown)"
-git_dirty=false
-if ! git -C "${repo_root}" diff --quiet || ! git -C "${repo_root}" diff --cached --quiet; then
-	git_dirty=true
+git_dirty=true
+if source_status="$(git -C "${repo_root}" status --porcelain --untracked-files=normal 2>/dev/null)" && [[ -z "${source_status}" ]]; then
+	git_dirty=false
 fi
 
 image_tag="$(docker build --build-arg="CUDA_VERSION=${cuda_version}" "${build_args[@]}" -q "${repo_root}")"

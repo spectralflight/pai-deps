@@ -49,6 +49,7 @@ def _run_build_script(
     work_dir: Path,
     env_file: Path | None = None,
     inline_env: str | None = None,
+    source_provenance: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     build_script = _write_fake_build_script(work_dir)
     env = {
@@ -61,6 +62,8 @@ def _run_build_script(
         "UV_PYTHON_CACHE_DIR": str(work_dir / "uv-python-cache"),
         "USER": "tester",
     }
+    if source_provenance is not None:
+        env.update(source_provenance)
     if env_file is not None:
         env["PAI_DEPS_BUILD_ENV_FILE"] = str(env_file)
     if inline_env is not None:
@@ -132,6 +135,18 @@ def test_build_script_writes_wheel_sidecars(tmp_path: Path) -> None:
     assert provenance["package"] == "cosmos-dummy"
     assert provenance["build_env"] == {"MAX_JOBS": "1", "NATTEN_N_WORKERS": "2"}
     assert provenance["wheel"]["filename"] == wheel.name
+
+
+def test_build_script_preserves_host_provenance_without_git_metadata(tmp_path: Path) -> None:
+    result = _run_build_script(
+        tmp_path,
+        source_provenance={"PAI_DEPS_GIT_COMMIT": "a" * 40, "PAI_DEPS_GIT_DIRTY": "false"},
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    sidecar = next((tmp_path / "build").glob("*/*.whl.build.json"))
+    provenance = json.loads(sidecar.read_text())
+    assert provenance["git_commit"] == "a" * 40
+    assert provenance["git_dirty"] is False
 
 
 def test_build_script_loads_inline_build_env(tmp_path: Path) -> None:

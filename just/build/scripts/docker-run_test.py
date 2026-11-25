@@ -6,6 +6,8 @@ import subprocess
 import textwrap
 from pathlib import Path
 
+import pytest
+
 ROOT_DIR = Path(__file__).resolve().parents[3]
 DOCKER_RUN_SCRIPT = ROOT_DIR / "just" / "build" / "scripts" / "docker-run.sh"
 
@@ -29,6 +31,18 @@ def test_docker_run_selectively_mounts_user_build_caches(tmp_path: Path) -> None
     assert any(value.startswith("PAI_DEPS_GIT_DIRTY=") for value in _environment(args))
     assert not any("huggingface" in arg.lower() for arg in args)
     assert "--rm" in args
+
+
+@pytest.mark.parametrize("dirty", [False, True])
+def test_docker_run_captures_source_provenance_without_mounting_git(tmp_path: Path, dirty: bool) -> None:
+    result, args_path = _invoke_with_fake_docker(tmp_path, source_dirty=dirty)
+    assert result.returncode == 0, result.stdout + result.stderr
+    args = args_path.read_text().splitlines()
+    assert _environment(args) >= {
+        "PAI_DEPS_GIT_COMMIT=" + "a" * 40,
+        f"PAI_DEPS_GIT_DIRTY={str(dirty).lower()}",
+    }
+    assert not any(".git" in mount for mount in _mounts(args))
 
 
 def test_docker_run_honors_explicit_host_cache_directories(tmp_path: Path) -> None:
@@ -97,6 +111,7 @@ def _invoke_with_fake_docker(
     uid: int = 1234,
     gid: int = 1234,
     raw_arguments: list[str] | None = None,
+    source_dirty: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], Path]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -134,8 +149,21 @@ def _invoke_with_fake_docker(
     )
     fake_id.chmod(0o755)
 
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env bash\n"
+        'case "$*" in\n'
+        '  *"rev-parse HEAD"*) printf "%s\\n" "${FAKE_SOURCE_COMMIT}" ;;\n'
+        '  *"status --porcelain"*) [ "$FAKE_SOURCE_DIRTY" = false ] || printf " M changed.py\\n" ;;\n'
+        "  *) exit 2 ;;\n"
+        "esac\n"
+    )
+    fake_git.chmod(0o755)
+
     env = {
         "FAKE_DOCKER_ARGS": str(args_path),
+        "FAKE_SOURCE_COMMIT": "a" * 40,
+        "FAKE_SOURCE_DIRTY": str(source_dirty).lower(),
         "FAKE_GID": str(gid),
         "FAKE_UID": str(uid),
         "HOME": str(tmp_path / "home"),

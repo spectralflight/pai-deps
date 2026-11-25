@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+schema_version = 1
+name = "nvidia-vipe"
+project_name = "nvidia-vipe"
+status = "maintained"
+upstream = "https://github.com/ashawkey/vipe"
+gpu_risk = "high"
+
+[license]
+expression = "Apache-2.0"
+files = ["LICENSE", "THIRD_PARTY_LICENSES.md"]
+confidence = "high"
+notes = "Public fork with bundled CUDA and third-party model implementations."
+
+[build]
+backend = "pip-wheel-git"
+script = "build.sh"
+common_pip_flags = true
+system_packages = ["libeigen3-dev"]
+
+[build.source]
+url = "https://github.com/ashawkey/vipe.git"
+revision = "43fa1effc9baf329c5b365bcf06ddb2ef6627662"
+
+[build.revision_overrides]
+"1.2.0.post20260710" = "43fa1effc9baf329c5b365bcf06ddb2ef6627662"
+
+[build.env]
+exports = ["MAX_JOBS", "USE_SYSTEM_EIGEN"]
+defaults = { MAX_JOBS = "2", USE_SYSTEM_EIGEN = "1" }
