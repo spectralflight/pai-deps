@@ -134,10 +134,11 @@ print(f"Using preinstalled torch={torch.__version__} cuda={torch.version.cuda}")
 	fi
 
 	# Set Torch-derived build environment variables.
-	eval "$(PYTHONPATH="${root_dir}" python -c "
+	torch_build_env="$(PYTHONPATH="${root_dir}" python -c "
 from pai_deps.build import build_env
 build_env()
 ")"
+	eval "${torch_build_env}"
 else
 	echo "Skipping torch install for ${PACKAGE_NAME}; pai-package.toml declares requires_torch = false."
 fi

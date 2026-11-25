@@ -257,7 +257,8 @@ def test_cpu_inner_build_uses_locked_torch_and_cleans_venv(tmp_path: Path, build
 
 
 @pytest.mark.parametrize("preinstalled", [False, True])
-def test_cuda_inner_build_preserves_torch_selection(tmp_path: Path, preinstalled: bool) -> None:
+@pytest.mark.parametrize("architecture_exit", [0, 9])
+def test_cuda_inner_build_preserves_torch_selection(tmp_path: Path, preinstalled: bool, architecture_exit: int) -> None:
     """CPU support must retain both managed and image-provided CUDA Torch."""
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -280,7 +281,10 @@ def test_cuda_inner_build_preserves_torch_selection(tmp_path: Path, preinstalled
         ),
         "nvcc": 'printf "release 13.0, V13.0\\n"\n',
         "python3": 'printf "3.12\\n"\n',
-        "python": 'printf "python %s\\n" "$*" >> "$COMMAND_LOG"\n',
+        "python": (
+            'printf "python %s\\n" "$*" >> "$COMMAND_LOG"\n'
+            'if [[ "$*" == *"from pai_deps.build import build_env"* ]]; then exit "$ARCHITECTURE_EXIT"; fi\n'
+        ),
         "ccache": "exit 0\n",
     }
     for name, body in commands.items():
@@ -290,7 +294,7 @@ def test_cuda_inner_build_preserves_torch_selection(tmp_path: Path, preinstalled
     package_dir = tmp_path / "packages" / "sample"
     package_dir.mkdir(parents=True)
     (package_dir / "pai-package.toml").write_text(f"preinstalled_torch = {str(preinstalled).lower()}\n")
-    (package_dir / "build.sh").write_text(":\n")
+    (package_dir / "build.sh").write_text('echo "package build" >> "$COMMAND_LOG"\n')
     environment = {
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
         "PACKAGE_NAME": "sample",
@@ -298,6 +302,7 @@ def test_cuda_inner_build_preserves_torch_selection(tmp_path: Path, preinstalled
         "TORCH_VERSION": "2.13",
         "PYTHON_VERSION": "3.12",
         "OUTPUT_NAME": "test-cuda",
+        "ARCHITECTURE_EXIT": str(architecture_exit),
         "OUTPUT_DIR": str(tmp_path / "output"),
         "UV_CACHE_DIR": str(tmp_path / "cache"),
         "COMMAND_LOG": str(command_log),
@@ -310,8 +315,9 @@ def test_cuda_inner_build_preserves_torch_selection(tmp_path: Path, preinstalled
         text=True,
         timeout=30,
     )
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.returncode == architecture_exit, result.stdout + result.stderr
     recorded = command_log.read_text()
+    assert ("package build" in recorded) == (architecture_exit == 0)
     assert "uv sync --active --locked" in recorded
     assert "--group cpu" not in recorded
     assert "from pai_deps.build import build_env" in recorded
